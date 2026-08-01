@@ -1,0 +1,89 @@
+Now that our IAM roles and OIDC provider are configured in Terraform, installing the controllers via Helm is straightforward.We'll install two essential Kubernetes add-ons:AWS Load Balancer Controller: Dynamically provisions AWS ALBs/NLBs when you deploy Ingress or Service resources.External Secrets Operator (ESO): Connects to AWS Secrets Manager using IRSA to automatically create native Kubernetes Secret objects.Prerequisites CheckBefore running the Helm commands, grab the IRSA Role ARNs that Terraform output in Steps 10 and 11:Bash# Extract ALB Controller IRSA ARN
+ALB_ROLE_ARN=$(terraform output -raw alb_controller_role_arn)
+echo "ALB Role ARN: $ALB_ROLE_ARN"
+
+# Extract External Secrets IRSA ARN
+ESO_ROLE_ARN=$(terraform output -raw external_secrets_role_arn)
+echo "ESO Role ARN: $ESO_ROLE_ARN"
+1.Install AWS Load Balancer Controller:Required for ingress and load balancer routing.First, add the official EKS Helm repository and update your local chart index:Bashhelm repo add eks https://aws.github.io/eks-charts
+helm repo update
+Next, install the controller chart into the kube-system namespace, passing your cluster name, VPC ID, and the IRSA role annotation:Bash
+
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=microservices-eks \
+  --set vpcId=$VPC_ID \
+  --set serviceAccount.create=true \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ALB_ROLE_ARN"
+Verify Deployment:Bashkubectl get deployment -n kube-system aws-load-balancer-controller
+2.Install External Secrets Operator (ESO):Required for syncing secrets from AWS Secrets Manager.Add the External Secrets Helm repository:Bashhelm repo add external-secrets https://charts.external-secrets.io
+helm repo update
+Install the chart into the external-secrets namespace, binding it to the IRSA role created in Step 11:Bash
+
+helm install external-secrets external-secrets/external-secrets \
+  -n external-secrets \
+  --create-namespace \
+  --set serviceAccount.create=true \
+  --set serviceAccount.name=external-secrets-sa \
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ESO_ROLE_ARN"
+Verify Deployment:Bashkubectl get pods -n external-secrets
+3.Create ClusterSecretStore:Connect ESO to AWS Secrets Manager.Now create a cluster-wide secrets store that points ESO to your AWS region (us-east-1):YAMLcat <Verify ClusterSecretStore Status:Bashkubectl get clustersecretstore
+(You should see STATUS: Valid once authentication succeeds!)4.Deploy ExternalSecret Resource:Sync AWS Secrets Manager payload into Kubernetes.Finally, deploy an ExternalSecret manifest to fetch microservices/app-config (created in Step 12) and materialize it as a Kubernetes Secret named app-secrets:YAMLcat <Verify synced Kubernetes Secret:Bashkubectl get secret app-secrets -o jsonpath='{.data}'
+
+
+
+2. Create ClusterSecretStore
+Create a cluster-wide secrets store that points ESO to your AWS region (us-east-1):
+
+YAML
+cat <<EOF | kubectl apply -f -
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: aws-secretsmanager
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: us-east-1
+      auth:
+        jwt:
+          serviceAccountRef:
+            name: external-secrets-sa
+            namespace: external-secrets
+EOF
+
+
+Verify it connected to AWS Secrets Manager:
+
+Bash
+kubectl get clustersecretstore
+(You should see STATUS: Valid!)
+
+3. Sync AWS Secrets Manager Payload into Kubernetes
+Sync the microservices/app-config secret created in Step 12 into a native Kubernetes Secret named app-secrets:
+
+YAML
+cat <<EOF | kubectl apply -f -
+
+kind: ExternalSecret
+metadata:
+  name: app-secrets-sync
+  namespace: default
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secretsmanager
+    kind: ClusterSecretStore
+  target:
+    name: app-secrets
+    creationPolicy: Owner
+  dataFrom:
+  - extract:
+      key: microservices/app-config
+EOF
+Verify that the Kubernetes secret was created with your MongoDB URI, Redis Endpoint, and JWT key:
+
+Bash
+kubectl get secret app-secrets -o jsonpath='{.data}'
