@@ -35,7 +35,7 @@ resource "aws_iam_instance_profile" "jenkins_profile" {
 resource "aws_security_group" "jenkins_sg" {
   name        = "jenkins-security-group"
   description = "Allow inbound traffic for Jenkins and SSH"
-  vpc_id      =  aws_vpc.main.id # References your VPC module from 01-vpc.tf
+  vpc_id      = aws_vpc.main.id # References your VPC module from 01-vpc.tf
 
   ingress {
     description = "Jenkins UI"
@@ -82,11 +82,11 @@ data "aws_ami" "amazon_linux_2023" {
 # 4. EC2 Instance with UserData Bootstrap Script
 # ==============================================================================
 resource "aws_instance" "jenkins_server" {
-  ami                  = data.aws_ami.amazon_linux_2023.id
-  instance_type        = "t3.medium" # Recommended for running Jenkins + Docker builds
-  subnet_id            = aws_subnet.public[0].id
+  ami                    = data.aws_ami.amazon_linux_2023.id
+  instance_type          = "t3.medium" # Recommended for running Jenkins + Docker builds
+  subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
-  iam_instance_profile = aws_iam_instance_profile.jenkins_profile.name
+  iam_instance_profile   = aws_iam_instance_profile.jenkins_profile.name
 
   # Automatically installs Docker, Jenkins, Git & AWS CLI on boot
   user_data = <<-EOF
