@@ -9,3 +9,8 @@
 
 # Ignore secret variable files
 *.tfvars
+
+# Terraform generated files
+.terraform/
+*.tfstate
+*.tfstate.*
