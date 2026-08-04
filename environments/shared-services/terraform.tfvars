@@ -1,0 +1,11 @@
+aws_region                = "us-east-1"
+project_name              = "microservices"
+environment               = "shared-services"
+vpc_cidr                  = "10.50.0.0/16"
+public_subnet_cidrs       = ["10.50.1.0/24", "10.50.2.0/24"]
+private_app_subnet_cidrs  = ["10.50.11.0/24", "10.50.12.0/24"]
+private_data_subnet_cidrs = ["10.50.21.0/24", "10.50.22.0/24"]
+enable_nat_gateway        = true
+jenkins_instance_type     = "t3.medium"
+jenkins_allowed_cidrs     = ["0.0.0.0/0"]
+ecr_repositories          = ["user-service", "order-service", "frontend"]

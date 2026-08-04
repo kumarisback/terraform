@@ -1,8 +1,14 @@
-# ==============================================================================
-# 1. EKS Cluster IAM Role
-# ==============================================================================
+locals {
+  common_tags = {
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Project     = var.name
+  }
+}
+
+# EKS Cluster IAM Role
 resource "aws_iam_role" "eks_cluster_role" {
-  name = "microservices-eks-cluster-role"
+  name = "${var.name}-${var.environment}-eks-cluster-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -17,22 +23,19 @@ resource "aws_iam_role" "eks_cluster_role" {
     ]
   })
 
-  tags = {
-    Name = "microservices-eks-cluster-role"
-  }
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-${var.environment}-eks-cluster-role"
+  })
 }
 
-# Attach standard policy required for EKS Cluster
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
   role       = aws_iam_role.eks_cluster_role.name
 }
 
-# ==============================================================================
-# 2. EKS Node Group IAM Role
-# ==============================================================================
+# EKS Node Group IAM Role
 resource "aws_iam_role" "eks_node_role" {
-  name = "microservices-eks-node-role"
+  name = "${var.name}-${var.environment}-eks-node-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -47,12 +50,11 @@ resource "aws_iam_role" "eks_node_role" {
     ]
   })
 
-  tags = {
-    Name = "microservices-eks-node-role"
-  }
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-${var.environment}-eks-node-role"
+  })
 }
 
-# Attach standard policies required for Worker Nodes
 resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
   role       = aws_iam_role.eks_node_role.name

@@ -1,42 +1,56 @@
 # Terraform Infrastructure Repository
 
-This repository contains the Terraform code for provisioning the cloud infrastructure required by the Kubernetes-based application stack.
+This repository now follows a production-oriented layout with reusable modules and environment-specific execution directories.
 
-## What is included
+## Structure
 
-- VPC and networking resources
-- Security groups
-- ECR repositories
-- RDS database resources
-- ElastiCache resources
-- IAM roles and policies for EKS
-- EKS cluster configuration
-- OIDC provider setup
-- ALB controller and external secrets IRSA setup
-- Secrets Manager integration
+```text
+terraform/
+├── modules/
+│   ├── networking/           # VPC, subnets, IGW, NAT, routing
+│   ├── eks/                  # EKS, IRSA, node groups
+│   ├── database/             # RDS and ElastiCache
+│   ├── ecr/                  # ECR repositories
+│   ├── secrets/              # Secrets Manager integration
+│   └── jenkins/              # Jenkins EC2 resources
+│
+└── environments/
+    ├── dev/
+    │   ├── main.tf
+    │   ├── variables.tf
+    │   ├── terraform.tfvars
+    │   └── backend.hcl
+    │
+    ├── staging/
+    │   ├── main.tf
+    │   ├── variables.tf
+    │   └── backend.hcl
+    │
+    └── prod/
+        ├── main.tf
+        ├── variables.tf
+        └── backend.hcl
+```
 
-## Main files
+## Current status
 
-- 00-providers.tf — provider configuration
-- 01-vpc.tf — VPC and subnets
-- 02-security-groups.tf — network access rules
-- 03-ecr.tf — container registry resources
-- 04-rds.tf — database infrastructure
-- 05-elasticache.tf — cache infrastructure
-- 06-iam-eks.tf — IAM roles for EKS
-- 07-eks-cluster.tf — EKS cluster definition
-- 08-oidc-provider.tf — OIDC provider setup
-- 09-alb-controller-irsa.tf — IAM role for ALB controller
-- 10-external-secrets-irsa.tf — IAM role for external-secrets
-- 11-secrets-manager.tf — Secrets Manager resources
+- Networking and Jenkins modules are implemented.
+- Dev, staging, and prod environment directories are present.
+- Legacy root-level Terraform files remain temporarily for migration and can be phased out gradually.
 
-## Typical workflow
+## Usage
 
-1. Review the Terraform variables and provider configuration.
-2. Run terraform init to initialize the working directory.
-3. Run terraform plan to review the intended infrastructure changes.
-4. Run terraform apply to create or update the resources.
+From the development environment folder:
 
-## Purpose in the full stack
+```bash
+cd environments/dev
+terraform init -backend=false
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```
 
-This repository provides the underlying cloud resources so the DevOps and GitOps repositories can deploy applications into a working Kubernetes environment.
+## Next improvements
+
+- Add remote state storage with S3 and DynamoDB
+- Implement the remaining modules for EKS, database, ECR, and secrets
+- Add Jenkins pipeline validation and deployment stages
