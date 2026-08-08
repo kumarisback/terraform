@@ -1,5 +1,5 @@
 output "vpc_id" {
-  value = module.networking.vpc_id
+  value = local.dev_state.outputs.vpc_id
 }
 
 output "jenkins_public_ip" {

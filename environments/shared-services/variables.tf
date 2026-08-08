@@ -63,3 +63,39 @@ variable "ecr_repositories" {
   type        = list(string)
   default     = ["user-service", "order-service", "frontend"]
 }
+
+variable "use_local_state" {
+  description = "When true, read dev Terraform state from a local file instead of S3"
+  type        = bool
+  default     = true
+}
+
+variable "dev_state_path" {
+  description = "Path to the local dev terraform.tfstate when use_local_state is true"
+  type        = string
+  default     = "../dev/terraform.tfstate"
+}
+
+variable "dev_state_bucket" {
+  description = "S3 bucket containing dev terraform state (when use_local_state is false)"
+  type        = string
+  default     = "your-terraform-state-bucket"
+}
+
+variable "dev_state_key" {
+  description = "S3 key for dev terraform state (when use_local_state is false)"
+  type        = string
+  default     = "dev/terraform.tfstate"
+}
+
+variable "dev_state_region" {
+  description = "Region for the dev S3 state"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "dev_state_dynamodb_table" {
+  description = "DynamoDB table for state locking (when use_local_state is false)"
+  type        = string
+  default     = "your-terraform-lock-table"
+}

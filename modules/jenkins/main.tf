@@ -87,23 +87,40 @@ resource "aws_instance" "jenkins" {
   associate_public_ip_address = true
 
   user_data = <<-EOF
-              #!/bin/bash
-              sudo yum update -y
-              sudo dnf install -y docker git
-              sudo systemctl start docker
-              sudo systemctl enable docker
+  #!/bin/bash
+  set -e
 
-              sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
-              sudo rpm --import https://pkg.jenkins.io/rpm-stable/jenkins.io-2026.key
-              sudo dnf install -y java-17-amazon-corretto jenkins
-              sudo systemctl daemon-reload
-              sudo systemctl enable jenkins
-              sudo systemctl start jenkins
+  # Update system
+  dnf update -y
 
-              sudo usermod -aG docker jenkins
-              sudo usermod -aG docker ec2-user
-              sudo systemctl restart jenkins
-              EOF
+  # Install Docker, Git, and Java 21
+  dnf install -y docker git java-21-amazon-corretto
+
+  # Start and enable Docker
+  systemctl enable docker
+  systemctl start docker
+
+  # Install Jenkins repository
+  wget -O /etc/yum.repos.d/jenkins.repo \
+    https://pkg.jenkins.io/redhat-stable/jenkins.repo
+
+  rpm --import https://pkg.jenkins.io/rpm-stable/jenkins.io-2026.key
+
+  # Install Jenkins
+  dnf install -y jenkins
+
+  # Make sure Jenkins uses Java 21
+  alternatives --set java /usr/lib/jvm/java-21-amazon-corretto.x86_64/bin/java
+
+  # Allow Jenkins and ec2-user to use Docker
+  usermod -aG docker jenkins
+  usermod -aG docker ec2-user
+
+  # Enable and start Jenkins
+  systemctl daemon-reload
+  systemctl enable jenkins
+  systemctl start jenkins
+EOF
 
   tags = merge(local.common_tags, {
     Name = "${var.name}-${var.environment}-jenkins"
