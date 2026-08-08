@@ -97,3 +97,37 @@ resource "aws_elasticache_cluster" "redis" {
     Name = "${var.name}-${var.environment}-redis"
   })
 }
+
+# RDS subnet group for database instances
+resource "aws_db_subnet_group" "rds" {
+  count      = var.enable_rds ? 1 : 0
+  name       = "${var.name}-${var.environment}-rds-subnet-group"
+  subnet_ids = var.private_data_subnet_ids
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-${var.environment}-rds-subnet-group"
+  })
+}
+
+# RDS database instance
+resource "aws_db_instance" "rds" {
+  count                  = var.enable_rds ? 1 : 0
+  identifier             = "${var.name}-${var.environment}-rds"
+  engine                 = var.rds_engine
+  engine_version         = var.rds_engine_version
+  instance_class         = var.rds_instance_class
+  allocated_storage      = var.rds_allocated_storage
+  db_subnet_group_name   = aws_db_subnet_group.rds[0].name
+  vpc_security_group_ids = [aws_security_group.rds[0].id]
+  username               = var.rds_username
+  password               = var.rds_password
+  db_name                = var.rds_db_name
+  skip_final_snapshot    = true
+  publicly_accessible    = false
+  deletion_protection    = false
+  apply_immediately      = true
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-${var.environment}-rds"
+  })
+}

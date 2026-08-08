@@ -45,3 +45,57 @@ variable "enable_nat_gateway" {
   type        = bool
   default     = true
 }
+
+variable "cluster_version" {
+  description = "EKS cluster version"
+  type        = string
+  default     = "1.36"
+}
+
+variable "node_desired_capacity" {
+  description = "Desired number of EKS worker nodes"
+  type        = number
+  default     = 2
+}
+
+variable "node_min_capacity" {
+  description = "Minimum number of EKS worker nodes"
+  type        = number
+  default     = 1
+}
+
+variable "node_max_capacity" {
+  description = "Maximum number of EKS worker nodes"
+  type        = number
+  default     = 5
+}
+
+variable "node_instance_type" {
+  description = "EKS worker instance type"
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "enable_rds" {
+  description = "Enable RDS database"
+  type        = bool
+  default     = false
+}
+
+variable "enable_elasticache" {
+  description = "Enable ElastiCache Redis"
+  type        = bool
+  default     = true
+}
+
+variable "redis_node_type" {
+  description = "ElastiCache node type"
+  type        = string
+  default     = "cache.t3.micro"
+}
+
+variable "secret_name" {
+  description = "AWS Secrets Manager secret name for environment values"
+  type        = string
+  default     = "microservices/prod/app-config"
+}

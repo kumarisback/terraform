@@ -1,28 +1,36 @@
+data "aws_secretsmanager_secret" "app_secrets" {
+  count = var.manage_secret ? 0 : 1
+  name  = var.secret_name
+  arn   = var.secret_arn != "" ? var.secret_arn : null
+}
+
+data "aws_secretsmanager_secret_version" "app_secrets_val" {
+  count     = var.manage_secret ? 0 : 1
+  secret_id = data.aws_secretsmanager_secret.app_secrets[0].id
+}
+
 locals {
-  common_tags = {
-    Environment = var.environment
-    ManagedBy   = "Terraform"
-    Project     = var.name
+  secret_values = var.manage_secret ? var.secret_values : jsondecode(data.aws_secretsmanager_secret_version.app_secrets_val[0].secret_string)
+}
+
+# When manage_secret is true, create or update the secret using the aws CLI.
+# This approach uses a local-exec to either create the secret or add a new version
+# so it works whether the secret already exists or not.
+resource "null_resource" "ensure_secret" {
+  count = var.manage_secret ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<-EOC
+      set -e
+      secret_name="${var.secret_name}"
+      secret_json='${jsonencode(var.secret_values)}'
+      if ! aws secretsmanager create-secret --name "$secret_name" --secret-string "$secret_json" >/dev/null 2>&1; then
+        aws secretsmanager put-secret-value --secret-id "$secret_name" --secret-string "$secret_json"
+      fi
+    EOC
   }
-}
 
-resource "aws_secretsmanager_secret" "app_secrets" {
-  name                    = "${var.name}/${var.environment}/app-config"
-  description             = "Application secrets for ${var.name} ${var.environment}"
-  recovery_window_in_days = 0
-
-  tags = merge(local.common_tags, {
-    Name = "${var.name}-${var.environment}-app-secrets"
-  })
-}
-
-resource "aws_secretsmanager_secret_version" "app_secrets_val" {
-  secret_id = aws_secretsmanager_secret.app_secrets.id
-
-  secret_string = jsonencode({
-    MONGO_URI  = var.mongo_uri
-    REDIS_HOST = var.redis_endpoint
-    REDIS_PORT = "6379"
-    JWT_SECRET = var.jwt_secret
-  })
+  triggers = {
+    secret_json = jsonencode(var.secret_values)
+  }
 }

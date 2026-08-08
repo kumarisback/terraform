@@ -21,7 +21,7 @@ variable "private_subnet_ids" {
 variable "cluster_version" {
   description = "EKS cluster version"
   type        = string
-  default     = "1.28"
+  default     = "1.36"
 }
 
 variable "node_desired_capacity" {

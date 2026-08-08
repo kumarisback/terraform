@@ -12,3 +12,8 @@ output "rds_security_group_id" {
   description = "RDS security group ID"
   value       = var.enable_rds ? aws_security_group.rds[0].id : null
 }
+
+output "rds_endpoint" {
+  description = "RDS database endpoint"
+  value       = var.enable_rds ? aws_db_instance.rds[0].endpoint : null
+}

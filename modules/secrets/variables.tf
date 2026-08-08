@@ -1,29 +1,22 @@
-variable "name" {
-  description = "Base name for secrets resources"
+variable "secret_name" {
+  description = "Name of the AWS Secrets Manager secret containing environment values"
   type        = string
 }
 
-variable "environment" {
-  description = "Environment name"
-  type        = string
-}
-
-variable "redis_endpoint" {
-  description = "Redis endpoint address"
+variable "secret_arn" {
+  description = "ARN of the AWS Secrets Manager secret (optional)"
   type        = string
   default     = ""
 }
 
-variable "mongo_uri" {
-  description = "MongoDB Atlas connection string"
-  type        = string
-  default     = "mongodb+srv://username:password@cluster.mongodb.net/db"
-  sensitive   = true
+variable "manage_secret" {
+  description = "When true, module will create/update the secret in AWS Secrets Manager using provided secret_values (requires aws CLI available during apply)."
+  type        = bool
+  default     = false
 }
 
-variable "jwt_secret" {
-  description = "JWT secret key"
-  type        = string
-  default     = "change-this-in-production"
-  sensitive   = true
+variable "secret_values" {
+  description = "Map of key -> value pairs to write into the secret when manage_secret is true"
+  type        = map(string)
+  default     = {}
 }
