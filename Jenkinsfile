@@ -7,7 +7,7 @@ pipeline {
 
   environment {
     TERRAFORM_DIR = 'infrastructure/app-cluster'
-    ENV_DIR = '../../environments/app-cluster'
+    ENV_DIR = "${WORKSPACE}/environments/app-cluster"
   }
 
   stages {
