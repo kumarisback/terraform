@@ -1,8 +1,13 @@
 pipeline {
   agent any
 
+  parameters {
+    choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Target environment')
+  }
+
   environment {
-    TERRAFORM_DIR = 'environments/dev'
+    TERRAFORM_DIR = 'infrastructure/app-cluster'
+    ENV_DIR = '../../environments/app-cluster'
   }
 
   stages {
@@ -15,7 +20,7 @@ pipeline {
     stage('Terraform Init') {
       steps {
         dir(TERRAFORM_DIR) {
-          sh 'terraform init -backend=false'
+          sh "terraform init -backend-config=${ENV_DIR}/${params.ENVIRONMENT}-backend.hcl"
         }
       }
     }
@@ -23,6 +28,14 @@ pipeline {
     stage('Terraform Format Check') {
       steps {
         sh 'terraform fmt -check -recursive'
+      }
+    }
+
+    stage('Security Scan (Checkov)') {
+      steps {
+        dir(TERRAFORM_DIR) {
+          sh "checkov -d . --var-file ${ENV_DIR}/${params.ENVIRONMENT}.tfvars --skip-check CKV_AWS_20"
+        }
       }
     }
 
@@ -37,7 +50,18 @@ pipeline {
     stage('Terraform Plan') {
       steps {
         dir(TERRAFORM_DIR) {
-          sh 'terraform plan -var-file=terraform.tfvars -input=false'
+          sh "terraform plan -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars -out=tfplan"
+        }
+      }
+    }
+
+    stage('Terraform Apply') {
+      when {
+        branch 'main'
+      }
+      steps {
+        dir(TERRAFORM_DIR) {
+          sh "terraform apply -auto-approve tfplan"
         }
       }
     }

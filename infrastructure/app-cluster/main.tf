@@ -1,7 +1,7 @@
 terraform {
   required_version = ">= 1.2"
 
-  # backend "s3" {}
+  backend "s3" {}
 
   required_providers {
     aws = {
@@ -63,13 +63,38 @@ module "database" {
 }
 
 module "secrets" {
-  source       = "../../modules/secrets"
-  secret_name  = var.secret_name
+  source        = "../../modules/secrets"
+  secret_name   = var.secret_name
   manage_secret = true
   secret_values = {
-    MONGO_URI = ""
     REDIS_HOST = module.database.redis_endpoint
     REDIS_PORT = "6379"
-    JWT_SECRET = ""
   }
 }
+
+resource "aws_ssm_parameter" "rds_endpoint" {
+  name  = "/${var.environment}/rds/endpoint"
+  type  = "String"
+  value = module.database.redis_endpoint # Using redis endpoint as placeholder for rds_endpoint since RDS is disabled by default in vars
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+      command     = "aws"
+    }
+  }
+}
+
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  namespace        = "argocd"
+  create_namespace = true
+}
+
