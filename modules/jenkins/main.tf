@@ -87,39 +87,176 @@ resource "aws_instance" "jenkins" {
   associate_public_ip_address = true
 
   user_data = <<-EOF
-  #!/bin/bash
-  set -e
+#!/bin/bash
+set -euxo pipefail
 
-  # Update system
-  dnf update -y
+# =========================================================
+# System update
+# =========================================================
 
-  # Install Docker, Git, and Java 21
-  dnf install -y docker git java-21-amazon-corretto
+dnf update -y
 
-  # Start and enable Docker
-  systemctl enable docker
-  systemctl start docker
+# =========================================================
+# Basic tools
+# =========================================================
 
-  # Install Jenkins repository
-  wget -O /etc/yum.repos.d/jenkins.repo \
-    https://pkg.jenkins.io/redhat-stable/jenkins.repo
+dnf install -y \
+  git \
+  wget \
+  unzip \
+  tar \
+  gzip \
+  jq \
+  zip \
+  which \
+  ca-certificates \
+  openssl \
+  java-21-amazon-corretto
 
-  rpm --import https://pkg.jenkins.io/rpm-stable/jenkins.io-2026.key
+# =========================================================
+# Java 21
+# =========================================================
 
-  # Install Jenkins
-  dnf install -y jenkins
+alternatives --set java /usr/lib/jvm/java-21-amazon-corretto.x86_64/bin/java
 
-  # Make sure Jenkins uses Java 21
-  alternatives --set java /usr/lib/jvm/java-21-amazon-corretto.x86_64/bin/java
+# =========================================================
+# Docker
+# =========================================================
 
-  # Allow Jenkins and ec2-user to use Docker
-  usermod -aG docker jenkins
-  usermod -aG docker ec2-user
+dnf install -y docker
 
-  # Enable and start Jenkins
-  systemctl daemon-reload
-  systemctl enable jenkins
-  systemctl start jenkins
+systemctl enable docker
+systemctl start docker
+
+# Jenkins and ec2-user can use Docker without sudo
+usermod -aG docker jenkins || true
+usermod -aG docker ec2-user || true
+
+# =========================================================
+# Node.js 22 LTS
+# =========================================================
+
+curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+
+dnf install -y nodejs
+
+# =========================================================
+# AWS CLI v2
+# =========================================================
+
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
+  -o "/tmp/awscliv2.zip"
+
+unzip -q /tmp/awscliv2.zip -d /tmp
+
+/tmp/aws/install
+
+rm -rf /tmp/aws /tmp/awscliv2.zip
+
+# =========================================================
+# Terraform
+# =========================================================
+
+TERRAFORM_VERSION="1.12.2"
+
+curl -fsSL \
+  "https://releases.hashicorp.com/terraform/$${TERRAFORM_VERSION}/terraform_$${TERRAFORM_VERSION}_linux_amd64.zip" \
+  -o /tmp/terraform.zip
+
+unzip -o /tmp/terraform.zip -d /usr/local/bin
+
+chmod +x /usr/local/bin/terraform
+
+rm -f /tmp/terraform.zip
+
+# =========================================================
+# kubectl
+# =========================================================
+
+KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+
+curl -LO "https://dl.k8s.io/release/$${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+rm -f kubectl
+
+# =========================================================
+# Helm
+# =========================================================
+
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# =========================================================
+# Jenkins repository
+# =========================================================
+
+wget -O /etc/yum.repos.d/jenkins.repo \
+  https://pkg.jenkins.io/redhat-stable/jenkins.repo
+
+rpm --import https://pkg.jenkins.io/rpm-stable/jenkins.io-2026.key
+
+# =========================================================
+# Jenkins
+# =========================================================
+
+dnf install -y jenkins
+
+# Make sure Jenkins uses Java 21
+alternatives --set java /usr/lib/jvm/java-21-amazon-corretto.x86_64/bin/java
+
+# =========================================================
+# Jenkins permissions
+# =========================================================
+
+usermod -aG docker jenkins
+usermod -aG docker ec2-user
+
+# =========================================================
+# Start Jenkins
+# =========================================================
+
+systemctl daemon-reload
+
+systemctl enable jenkins
+systemctl start jenkins
+
+# =========================================================
+# Display installed versions in cloud-init log
+# =========================================================
+
+echo "===== Java ====="
+java -version
+
+echo "===== Node ====="
+node --version
+
+echo "===== npm ====="
+npm --version
+
+echo "===== Git ====="
+git --version
+
+echo "===== Docker ====="
+docker --version
+
+echo "===== AWS CLI ====="
+aws --version
+
+echo "===== Terraform ====="
+terraform version
+
+echo "===== kubectl ====="
+kubectl version --client
+
+echo "===== Helm ====="
+helm version
+
+echo "===== Jenkins ====="
+systemctl status jenkins --no-pager || true
+
+echo "===== Jenkins installation completed ====="
+
 EOF
 
   tags = merge(local.common_tags, {

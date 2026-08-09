@@ -16,8 +16,12 @@ variable "environment" {
   default     = "shared-services"
 }
 
+# ---------------------------------------------------------
+# Shared VPC
+# ---------------------------------------------------------
+
 variable "vpc_cidr" {
-  description = "CIDR block for the VPC"
+  description = "CIDR block for the shared VPC"
   type        = string
   default     = "10.50.0.0/16"
 }
@@ -41,10 +45,14 @@ variable "private_data_subnet_cidrs" {
 }
 
 variable "enable_nat_gateway" {
-  description = "Create a NAT gateway"
+  description = "Whether to create a NAT gateway"
   type        = bool
   default     = true
 }
+
+# ---------------------------------------------------------
+# Jenkins
+# ---------------------------------------------------------
 
 variable "jenkins_instance_type" {
   description = "EC2 instance type for Jenkins"
@@ -55,47 +63,23 @@ variable "jenkins_instance_type" {
 variable "jenkins_allowed_cidrs" {
   description = "CIDR blocks allowed to access Jenkins"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+
+  # For testing only.
+  # Restrict this to your public IP for real use.
+  default = ["0.0.0.0/0"]
 }
+
+# ---------------------------------------------------------
+# ECR
+# ---------------------------------------------------------
 
 variable "ecr_repositories" {
   description = "List of ECR repository names"
   type        = list(string)
-  default     = ["user-service", "order-service", "frontend"]
-}
 
-variable "use_local_state" {
-  description = "When true, read dev Terraform state from a local file instead of S3"
-  type        = bool
-  default     = true
-}
-
-variable "dev_state_path" {
-  description = "Path to the local dev terraform.tfstate when use_local_state is true"
-  type        = string
-  default     = "../dev/terraform.tfstate"
-}
-
-variable "dev_state_bucket" {
-  description = "S3 bucket containing dev terraform state (when use_local_state is false)"
-  type        = string
-  default     = "your-terraform-state-bucket"
-}
-
-variable "dev_state_key" {
-  description = "S3 key for dev terraform state (when use_local_state is false)"
-  type        = string
-  default     = "dev/terraform.tfstate"
-}
-
-variable "dev_state_region" {
-  description = "Region for the dev S3 state"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "dev_state_dynamodb_table" {
-  description = "DynamoDB table for state locking (when use_local_state is false)"
-  type        = string
-  default     = "your-terraform-lock-table"
+  default = [
+    "user-service",
+    "order-service",
+    "frontend"
+  ]
 }
