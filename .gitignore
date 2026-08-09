@@ -8,9 +8,10 @@
 .terraform.lock.hcl
 
 # Ignore secret variable files
-*.tfvars
+*.secret.tfvars
+secrets.tfvars
+terraform.tfvars
 
-# Terraform generated files
-.terraform/
-*.tfstate
-*.tfstate.*
+# Allow environment definition files
+!environments/**/*.tfvars
+
