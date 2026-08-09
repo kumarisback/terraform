@@ -3,6 +3,7 @@ pipeline {
 
   parameters {
     choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Target environment')
+    choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Action to perform: apply or destroy')
   }
 
   environment {
@@ -31,14 +32,6 @@ pipeline {
       }
     }
 
-    // stage('Security Scan (Checkov)') {
-    //   steps {
-    //     dir(TERRAFORM_DIR) {
-    //       sh "checkov -d . --var-file ${ENV_DIR}/${params.ENVIRONMENT}.tfvars --skip-check CKV_AWS_20"
-    //     }
-    //   }
-    // }
-
     stage('Terraform Validate') {
       steps {
         dir(TERRAFORM_DIR) {
@@ -50,18 +43,30 @@ pipeline {
     stage('Terraform Plan') {
       steps {
         dir(TERRAFORM_DIR) {
-          sh "terraform plan -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars -out=tfplan"
+          script {
+            if (params.ACTION == 'destroy') {
+              sh "terraform plan -destroy -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars -out=tfplan"
+            } else {
+              sh "terraform plan -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars -out=tfplan"
+            }
+          }
         }
       }
     }
 
     stage('Manual Approval') {
       steps {
-        input message: "Approve Terraform Apply for environment '${params.ENVIRONMENT}'?", ok: 'Apply'
+        script {
+          if (params.ACTION == 'destroy') {
+            input message: "⚠️ DANGER: Confirm DESTROYing environment '${params.ENVIRONMENT}'?", ok: 'DESTROY ALL'
+          } else {
+            input message: "Approve Terraform Apply for environment '${params.ENVIRONMENT}'?", ok: 'Apply'
+          }
+        }
       }
     }
 
-    stage('Terraform Apply') {
+    stage('Terraform Execute (Apply/Destroy)') {
       steps {
         dir(TERRAFORM_DIR) {
           sh "terraform apply -auto-approve tfplan"
@@ -70,10 +75,8 @@ pipeline {
     }
   }
 
-
   post {
     always {
-      // Deletes the workspace directory completely on success, failure, or abort
       cleanWs()
     }
   }
