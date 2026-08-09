@@ -52,14 +52,14 @@ module "eks" {
 module "database" {
   source = "../../modules/database"
 
-  name                  = var.project_name
-  environment           = var.environment
-  vpc_id                = module.networking.vpc_id
-  vpc_cidr              = var.vpc_cidr
+  name                    = var.project_name
+  environment             = var.environment
+  vpc_id                  = module.networking.vpc_id
+  vpc_cidr                = var.vpc_cidr
   private_data_subnet_ids = module.networking.private_data_subnet_ids
-  enable_rds            = var.enable_rds
-  enable_elasticache    = var.enable_elasticache
-  redis_node_type       = var.redis_node_type
+  enable_rds              = var.enable_rds
+  enable_elasticache      = var.enable_elasticache
+  redis_node_type         = var.redis_node_type
 }
 
 module "secrets" {
