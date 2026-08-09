@@ -99,18 +99,21 @@ resource "helm_release" "argocd" {
   namespace        = "argocd"
   create_namespace = true
 
-  set {
-    name  = "server.service.type"
-    value = var.enable_argocd_loadbalancer ? "LoadBalancer" : "ClusterIP"
-  }
-
-  dynamic "set" {
-    for_each = var.enable_argocd_loadbalancer ? var.argocd_allowed_cidrs : []
-    content {
-      name  = "server.service.loadBalancerSourceRanges[${set.key}]"
-      value = set.value
-    }
-  }
+  set = concat(
+    [
+      {
+        name  = "server.service.type"
+        value = var.enable_argocd_loadbalancer ? "LoadBalancer" : "ClusterIP"
+      }
+    ],
+    var.enable_argocd_loadbalancer ? [
+      for idx, cidr in var.argocd_allowed_cidrs : {
+        name  = "server.service.loadBalancerSourceRanges[${idx}]"
+        value = cidr
+      }
+    ] : []
+  )
 }
+
 
 
