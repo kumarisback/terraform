@@ -47,3 +47,10 @@ variable "node_instance_type" {
   type        = string
   default     = "t3.medium"
 }
+
+variable "admin_users" {
+  description = "Additional IAM User ARNs to grant admin access to the EKS cluster"
+  type        = list(string)
+  default     = []
+}
+

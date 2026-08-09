@@ -112,3 +112,10 @@ variable "argocd_allowed_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "eks_admin_users" {
+  description = "List of IAM User ARNs to grant admin access to EKS"
+  type        = list(string)
+  default     = []
+}
+
+

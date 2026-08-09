@@ -56,7 +56,9 @@ module "eks" {
   node_min_capacity     = var.node_min_capacity
   node_max_capacity     = var.node_max_capacity
   node_instance_type    = var.node_instance_type
+  admin_users           = var.eks_admin_users
 }
+
 
 module "database" {
   source = "../../modules/database"

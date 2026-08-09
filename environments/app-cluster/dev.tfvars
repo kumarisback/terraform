@@ -12,3 +12,7 @@ enable_argocd_loadbalancer = true
 # To restrict access to your IP address only, uncomment and update the line below:
 # argocd_allowed_cidrs     = ["203.0.113.50/32"]
 argocd_allowed_cidrs = ["0.0.0.0/0"]
+
+# EKS Access Configuration
+eks_admin_users = ["arn:aws:iam::602367507570:user/terraform"]
+
