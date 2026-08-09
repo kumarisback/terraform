@@ -16,6 +16,10 @@ terraform {
       source  = "hashicorp/null"
       version = "~> 3.2"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.9"
+    }
   }
 
 }
@@ -104,6 +108,10 @@ provider "helm" {
 }
 
 resource "helm_release" "argocd" {
+  # During apply: Wait for EKS and any sleep buffer
+  # During destroy: Uninstall helm chart BEFORE starting the EKS cluster deletion
+  depends_on = [time_sleep.wait_for_lb_cleanup]
+
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
@@ -127,6 +135,19 @@ resource "helm_release" "argocd" {
     ] : []
   )
 }
+
+# Introducing a sleep during destroy to allow AWS to delete the Load Balancer
+# and detach any network interfaces (ENIs) before the EKS cluster goes offline.
+resource "time_sleep" "wait_for_lb_cleanup" {
+  depends_on = [module.eks]
+
+  # No delay when creating the EKS cluster/controllers
+  create_duration = "0s"
+
+  # Wait 2 minutes during destroy before starting the EKS cluster deletion
+  destroy_duration = "120s"
+}
+
 
 
 
