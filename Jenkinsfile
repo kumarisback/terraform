@@ -55,10 +55,13 @@ pipeline {
       }
     }
 
-    stage('Terraform Apply') {
-      when {
-        branch 'main'
+    stage('Manual Approval') {
+      steps {
+        input message: "Approve Terraform Apply for environment '${params.ENVIRONMENT}'?", ok: 'Apply'
       }
+    }
+
+    stage('Terraform Apply') {
       steps {
         dir(TERRAFORM_DIR) {
           sh "terraform apply -auto-approve tfplan"
@@ -66,6 +69,7 @@ pipeline {
       }
     }
   }
+
 
   post {
     always {
