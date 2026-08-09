@@ -119,10 +119,16 @@ dnf install -y \
   java-21-amazon-corretto
 
 # =========================================================
-# Java 21
+# Java 21 and Python
 # =========================================================
 
 alternatives --set java /usr/lib/jvm/java-21-amazon-corretto.x86_64/bin/java
+
+dnf install -y python3 python3-pip
+
+# Install Checkov for Terraform security scanning
+pip3 install --upgrade pip
+pip3 install checkov
 
 # =========================================================
 # Docker
