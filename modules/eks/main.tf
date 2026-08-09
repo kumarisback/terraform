@@ -100,10 +100,16 @@ resource "aws_eks_cluster" "this" {
     endpoint_private_access = true
   }
 
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+
   tags = merge(local.common_tags, {
     Name = "${var.name}-${var.environment}-eks-cluster"
   })
 }
+
 
 resource "aws_eks_node_group" "this" {
   cluster_name    = aws_eks_cluster.this.name
