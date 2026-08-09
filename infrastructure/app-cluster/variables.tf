@@ -99,3 +99,16 @@ variable "secret_name" {
   type        = string
   default     = "microservices/dev/app-config"
 }
+
+variable "enable_argocd_loadbalancer" {
+  description = "Expose ArgoCD UI via AWS LoadBalancer"
+  type        = bool
+  default     = true
+}
+
+variable "argocd_allowed_cidrs" {
+  description = "Allowed CIDR blocks to access ArgoCD UI (e.g. ['203.0.113.50/32'] or ['0.0.0.0/0'])"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
