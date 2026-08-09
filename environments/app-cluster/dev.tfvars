@@ -11,4 +11,4 @@ enable_nat_gateway        = true
 enable_argocd_loadbalancer = true
 # To restrict access to your IP address only, uncomment and update the line below:
 # argocd_allowed_cidrs     = ["203.0.113.50/32"]
-argocd_allowed_cidrs       = ["0.0.0.0/0"]
+argocd_allowed_cidrs = ["0.0.0.0/0"]
