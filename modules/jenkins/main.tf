@@ -119,16 +119,36 @@ dnf install -y \
   java-21-amazon-corretto
 
 # =========================================================
-# Java 21 and Python
+# Java 21 
 # =========================================================
 
 alternatives --set java /usr/lib/jvm/java-21-amazon-corretto.x86_64/bin/java
 
+
+# =========================================================
+# Python + Checkov
+# =========================================================
+
 dnf install -y python3 python3-pip
 
-# Install Checkov for Terraform security scanning
-pip3 install --upgrade pip
-pip3 install checkov
+# Create isolated Python environment for Checkov
+python3 -m venv /opt/checkov-venv
+
+# Upgrade pip inside the virtual environment
+/opt/checkov-venv/bin/python -m pip install --upgrade pip
+
+# Install Checkov
+/opt/checkov-venv/bin/python -m pip install checkov
+
+# Make Checkov available globally
+ln -sf /opt/checkov-venv/bin/checkov /usr/local/bin/checkov
+
+# Allow Jenkins to execute Checkov
+chmod -R a+rX /opt/checkov-venv
+
+echo "===== Checkov ====="
+/usr/local/bin/checkov --version
+
 
 # =========================================================
 # Docker
