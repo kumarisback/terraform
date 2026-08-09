@@ -66,4 +66,11 @@ pipeline {
       }
     }
   }
+
+  post {
+    always {
+      // Deletes the workspace directory completely on success, failure, or abort
+      cleanWs()
+    }
+  }
 }
