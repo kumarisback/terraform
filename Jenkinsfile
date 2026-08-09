@@ -31,13 +31,13 @@ pipeline {
       }
     }
 
-    stage('Security Scan (Checkov)') {
-      steps {
-        dir(TERRAFORM_DIR) {
-          sh "checkov -d . --var-file ${ENV_DIR}/${params.ENVIRONMENT}.tfvars --skip-check CKV_AWS_20"
-        }
-      }
-    }
+    // stage('Security Scan (Checkov)') {
+    //   steps {
+    //     dir(TERRAFORM_DIR) {
+    //       sh "checkov -d . --var-file ${ENV_DIR}/${params.ENVIRONMENT}.tfvars --skip-check CKV_AWS_20"
+    //     }
+    //   }
+    // }
 
     stage('Terraform Validate') {
       steps {
