@@ -8,7 +8,16 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.92"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 3.0"
+    }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
+
 }
 
 provider "aws" {
@@ -96,8 +105,10 @@ resource "helm_release" "argocd" {
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
+  version          = "7.7.15"
   namespace        = "argocd"
   create_namespace = true
+
 
   set = concat(
     [
