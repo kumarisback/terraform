@@ -1,57 +1,74 @@
-# Terraform Infrastructure Repository
+# Terraform Infrastructure Setup Guide
 
-This repository provisions the foundational AWS cloud infrastructure (VPC, EKS, RDS) and securely bootstraps GitOps (ArgoCD) to achieve a fully automated deployment pipeline. It follows a DRY (Don't Repeat Yourself) architecture.
+Welcome! This repository is your starting point for creating the cloud infrastructure (AWS EKS, VPC, RDS) and automatically setting up our GitOps pipeline (ArgoCD).
 
-## Architecture Structure
+**Goal**: Follow these instructions to spin up a completely fresh environment (like `dev` or `prod`) from scratch. By the end of this guide, your cluster will be running, and ArgoCD will be automatically installed and waiting for application deployments.
 
-```text
-terraform/
-├── infrastructure/
-│   ├── app-cluster/          # Unified root module for dev, staging, prod clusters
-│   └── shared-services/      # Root module for shared tools (Jenkins, ECR)
-│
-├── environments/
-│   ├── app-cluster/
-│   │   ├── dev.tfvars        # Variables for the Dev environment
-│   │   ├── prod.tfvars       # Variables for the Prod environment
-│   │   └── ...
-│   └── shared-services/
-│
-└── modules/                  # Reusable Terraform modules (eks, networking, database, etc.)
-```
+---
 
-## How It Works (The Automation Bridge)
+## Prerequisites
+Before you begin, ensure you have:
+1. **AWS CLI** installed and authenticated (`aws configure`) with Administrator permissions.
+2. **Terraform** installed (v1.2+).
+3. **kubectl** installed (to interact with the cluster later).
 
-When this Terraform code runs, it:
-1. Creates the VPC, Subnets, and EKS Cluster.
-2. Creates the RDS Database (if enabled) and pushes the endpoint to **AWS Systems Manager (SSM) Parameter Store**.
-3. Uses the Terraform Helm provider to **automatically install ArgoCD** into the EKS cluster.
-4. Tells ArgoCD to track your GitOps repository, triggering the deployment of your applications.
+---
 
-## How to Deploy (End-to-End)
+## Step 1: Configure Your Environment
 
-### Option 1: Via Jenkins (Recommended)
-This repository contains a `Jenkinsfile`.
-1. Point your Jenkins pipeline to this repository.
-2. Trigger a build and select your target `ENVIRONMENT` parameter (e.g., `dev`).
-3. Jenkins will run a `checkov` security scan and automatically apply the infrastructure.
+All configuration happens in the `environments/app-cluster/` folder.
+Let's say you want to deploy the `dev` environment.
 
-### Option 2: Manual Deployment via CLI
-If you want to deploy manually from your machine:
+1. Open `environments/app-cluster/dev.tfvars`. This file controls the shape of your infrastructure (e.g., how many nodes, VPC size, etc.).
+2. Update any variables if needed. By default, it is configured for a standard microservices deployment.
+3. Open `environments/app-cluster/dev-backend.hcl`. This defines where Terraform saves its state. Make sure the `bucket` and `dynamodb_table` exist in your AWS account to safely store state.
 
-1. **Authenticate with AWS**: Ensure your AWS CLI is authenticated and has administrative permissions.
-2. **Initialize the Environment**:
+---
+
+## Step 2: Deploy the Infrastructure (Manual Approach)
+
+If you are not using Jenkins, follow these steps in your terminal:
+
+1. Navigate to the root infrastructure module:
    ```bash
    cd infrastructure/app-cluster
+   ```
+
+2. Initialize Terraform for your specific environment:
+   ```bash
    terraform init -backend-config=../../environments/app-cluster/dev-backend.hcl
    ```
-3. **Plan the Changes**:
+
+3. Preview the changes (Optional but recommended):
    ```bash
    terraform plan -var-file=../../environments/app-cluster/dev.tfvars -out=tfplan
    ```
-4. **Apply the Infrastructure**:
+
+4. Apply the changes to create the cloud resources:
    ```bash
    terraform apply tfplan
    ```
+   *(Note: This step can take 15-20 minutes as it provisions the EKS cluster and databases).*
 
-Once Terraform finishes, ArgoCD is instantly installed and will automatically connect to your GitOps repository to deploy your microservices!
+---
+
+## Step 3: What Just Happened?
+
+When the `terraform apply` finishes successfully:
+1. Your AWS EKS Cluster is up and running.
+2. Your AWS RDS Database (if enabled) is created.
+3. The database connection details are securely saved into **AWS Systems Manager (SSM)**.
+4. **ArgoCD is automatically installed** via Helm.
+5. ArgoCD is automatically told to connect to our [GitOps Repository](https://github.com/kumarisback/gitops) and start deploying applications!
+
+You do NOT need to run any `kubectl` commands to deploy your apps. Jump over to the **GitOps Repository README** to see how to deploy and update your services.
+
+---
+
+## (Alternative) Deploying via Jenkins
+
+If you prefer CI/CD automation:
+1. Open your Jenkins dashboard and point a Pipeline job to this repository.
+2. Run the build with Parameters.
+3. Select `ENVIRONMENT` = `dev` (or `staging`, `prod`).
+4. Jenkins will run security scans (`checkov`) and execute the terraform commands above automatically.
