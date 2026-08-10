@@ -112,6 +112,24 @@ variable "argocd_allowed_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "argocd_gitops_repo_url" {
+  description = "GitOps repository URL that ArgoCD should bootstrap and sync"
+  type        = string
+  default     = "https://github.com/kumarisback/gitops.git"
+}
+
+variable "argocd_gitops_repo_revision" {
+  description = "Branch or revision ArgoCD should sync from"
+  type        = string
+  default     = "HEAD"
+}
+
+variable "argocd_gitops_repo_path" {
+  description = "Path inside the GitOps repository for the ArgoCD root application"
+  type        = string
+  default     = "bootstrap/projects"
+}
+
 variable "eks_admin_users" {
   description = "List of IAM User ARNs to grant admin access to EKS"
   type        = list(string)

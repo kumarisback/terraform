@@ -59,7 +59,8 @@ When the `terraform apply` finishes successfully:
 2. Your AWS RDS Database (if enabled) is created.
 3. The database connection details are securely saved into **AWS Systems Manager (SSM)**.
 4. **ArgoCD is automatically installed** via Helm.
-5. ArgoCD is automatically told to connect to our [GitOps Repository](https://github.com/kumarisback/gitops) and start deploying applications!
+5. Terraform creates an ArgoCD root Application that points at the GitOps repository: `https://github.com/kumarisback/gitops.git`.
+6. ArgoCD automatically syncs that GitOps repo and deploys the applications in `bootstrap/projects`.
 
 You do NOT need to run any `kubectl` commands to deploy your apps. Jump over to the **GitOps Repository README** to see how to deploy and update your services.
 

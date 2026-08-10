@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 3.0"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.0"
+    }
     null = {
       source  = "hashicorp/null"
       version = "~> 3.2"
@@ -107,6 +111,18 @@ provider "helm" {
   }
 }
 
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  load_config_file       = false
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+  }
+}
+
 resource "helm_release" "argocd" {
   # During apply: Wait for EKS and any sleep buffer
   # During destroy: Uninstall helm chart BEFORE starting the EKS cluster deletion
@@ -146,6 +162,37 @@ resource "time_sleep" "wait_for_lb_cleanup" {
 
   # Wait 2 minutes during destroy before starting the EKS cluster deletion
   destroy_duration = "120s"
+}
+
+resource "kubernetes_manifest" "argocd_root_app" {
+  depends_on = [helm_release.argocd]
+
+  manifest = {
+    apiVersion = "argoproj.io/v1alpha1"
+    kind       = "Application"
+    metadata = {
+      name      = "root-app"
+      namespace = "argocd"
+    }
+    spec = {
+      project = "default"
+      source = {
+        repoURL        = var.argocd_gitops_repo_url
+        targetRevision = var.argocd_gitops_repo_revision
+        path           = var.argocd_gitops_repo_path
+      }
+      destination = {
+        server    = "https://kubernetes.default.svc"
+        namespace = "argocd"
+      }
+      syncPolicy = {
+        automated = {
+          prune    = true
+          selfHeal = true
+        }
+      }
+    }
+  }
 }
 
 

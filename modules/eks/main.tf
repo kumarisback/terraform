@@ -96,7 +96,7 @@ resource "aws_eks_cluster" "this" {
     subnet_ids              = var.private_subnet_ids
     security_group_ids      = [aws_security_group.eks_cluster.id]
     endpoint_public_access  = true
-    public_access_cidrs     = ["0.0.0.0/0"]
+    public_access_cidrs     = ["0.0.0.0/0"] #Warning restrict this ip to some vpn/ personal ip for production
     endpoint_private_access = true
   }
 
