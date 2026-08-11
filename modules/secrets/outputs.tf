@@ -5,7 +5,7 @@ output "secret_name" {
 
 output "secret_arn" {
   description = "ARN of the application secrets (if available)"
-  value       = var.secret_arn
+  value       = local.secret_arn
 }
 
 output "mongo_uri" {
