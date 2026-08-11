@@ -171,7 +171,7 @@ variable "enable_argocd_loadbalancer" {
 }
 
 variable "argocd_allowed_cidrs" {
-  description = "Allowed CIDR blocks to access ArgoCD UI (e.g. ['203.0.113.50/32'] or ['0.0.0.0/0'])"
+  description = "Allowed CIDR blocks to access ArgoCD UI. For learning this may be 0.0.0.0/0, but production should use your IP or VPN CIDR."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
