@@ -14,6 +14,11 @@ variable "environment" {
   description = "Environment name"
   type        = string
   default     = "dev"
+
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment must be one of dev, staging, or prod."
+  }
 }
 
 variable "vpc_cidr" {
@@ -152,4 +157,3 @@ variable "eks_admin_users" {
   type        = list(string)
   default     = []
 }
-

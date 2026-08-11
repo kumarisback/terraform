@@ -14,6 +14,11 @@ variable "environment" {
   description = "Environment name"
   type        = string
   default     = "shared-services"
+
+  validation {
+    condition     = var.environment == "shared-services"
+    error_message = "shared-services root module must use environment = \"shared-services\"."
+  }
 }
 
 # ---------------------------------------------------------
