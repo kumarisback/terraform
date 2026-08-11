@@ -95,8 +95,8 @@ resource "aws_eks_cluster" "this" {
   vpc_config {
     subnet_ids              = var.private_subnet_ids
     security_group_ids      = [aws_security_group.eks_cluster.id]
-    endpoint_public_access  = true
-    public_access_cidrs     = ["0.0.0.0/0"] #Warning restrict this ip to some vpn/ personal ip for production
+    endpoint_public_access  = var.endpoint_public_access
+    public_access_cidrs     = var.endpoint_public_access ? var.public_access_cidrs : []
     endpoint_private_access = true
   }
 
@@ -147,4 +147,3 @@ resource "aws_eks_access_policy_association" "admins" {
     type = "cluster"
   }
 }
-

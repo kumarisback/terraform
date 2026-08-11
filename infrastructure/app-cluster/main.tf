@@ -55,16 +55,18 @@ module "networking" {
 module "eks" {
   source = "../../modules/eks"
 
-  name                  = var.project_name
-  environment           = var.environment
-  vpc_id                = module.networking.vpc_id
-  private_subnet_ids    = module.networking.private_app_subnet_ids
-  cluster_version       = var.cluster_version
-  node_desired_capacity = var.node_desired_capacity
-  node_min_capacity     = var.node_min_capacity
-  node_max_capacity     = var.node_max_capacity
-  node_instance_type    = var.node_instance_type
-  admin_users           = var.eks_admin_users
+  name                   = var.project_name
+  environment            = var.environment
+  vpc_id                 = module.networking.vpc_id
+  private_subnet_ids     = module.networking.private_app_subnet_ids
+  cluster_version        = var.cluster_version
+  endpoint_public_access = var.eks_endpoint_public_access
+  public_access_cidrs    = var.eks_public_access_cidrs
+  node_desired_capacity  = var.node_desired_capacity
+  node_min_capacity      = var.node_min_capacity
+  node_max_capacity      = var.node_max_capacity
+  node_instance_type     = var.node_instance_type
+  admin_users            = var.eks_admin_users
 }
 
 
@@ -194,7 +196,6 @@ resource "kubernetes_manifest" "argocd_root_app" {
     }
   }
 }
-
 
 
 

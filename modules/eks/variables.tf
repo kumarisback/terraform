@@ -24,6 +24,23 @@ variable "cluster_version" {
   default     = "1.36"
 }
 
+variable "endpoint_public_access" {
+  description = "Whether to expose the EKS Kubernetes API endpoint publicly."
+  type        = bool
+  default     = false
+}
+
+variable "public_access_cidrs" {
+  description = "CIDR blocks allowed to reach the public EKS Kubernetes API endpoint."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = !contains(var.public_access_cidrs, "0.0.0.0/0")
+    error_message = "Do not expose the EKS API endpoint to 0.0.0.0/0. Use your public IP/VPN CIDR instead."
+  }
+}
+
 variable "node_desired_capacity" {
   description = "Desired number of worker nodes"
   type        = number
@@ -53,4 +70,3 @@ variable "admin_users" {
   type        = list(string)
   default     = []
 }
-
