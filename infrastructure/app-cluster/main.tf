@@ -93,10 +93,20 @@ module "secrets" {
   }
 }
 
+resource "aws_ssm_parameter" "redis_endpoint" {
+  count = var.enable_elasticache ? 1 : 0
+
+  name  = "/${var.environment}/redis/endpoint"
+  type  = "String"
+  value = module.database.redis_endpoint
+}
+
 resource "aws_ssm_parameter" "rds_endpoint" {
+  count = var.enable_rds ? 1 : 0
+
   name  = "/${var.environment}/rds/endpoint"
   type  = "String"
-  value = module.database.redis_endpoint # Using redis endpoint as placeholder for rds_endpoint since RDS is disabled by default in vars
+  value = module.database.rds_endpoint
 }
 
 
@@ -196,6 +206,5 @@ resource "kubernetes_manifest" "argocd_root_app" {
     }
   }
 }
-
 
 
