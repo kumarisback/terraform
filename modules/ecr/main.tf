@@ -20,7 +20,7 @@ resource "aws_ecr_lifecycle_policy" "cleanup_policy" {
     rules = [
       {
         rulePriority = 1
-        description  = "Keep last 10 images, remove untagged after 14 days"
+        description  = "Remove untagged images after 14 days"
         selection = {
           tagStatus   = "untagged"
           countType   = "sinceImagePushed"
