@@ -73,14 +73,21 @@ module "eks" {
 module "database" {
   source = "../../modules/database"
 
-  name                    = var.project_name
-  environment             = var.environment
-  vpc_id                  = module.networking.vpc_id
-  vpc_cidr                = var.vpc_cidr
-  private_data_subnet_ids = module.networking.private_data_subnet_ids
-  enable_rds              = var.enable_rds
-  enable_elasticache      = var.enable_elasticache
-  redis_node_type         = var.redis_node_type
+  name                            = var.project_name
+  environment                     = var.environment
+  vpc_id                          = module.networking.vpc_id
+  vpc_cidr                        = var.vpc_cidr
+  private_data_subnet_ids         = module.networking.private_data_subnet_ids
+  enable_rds                      = var.enable_rds
+  enable_elasticache              = var.enable_elasticache
+  redis_node_type                 = var.redis_node_type
+  rds_manage_master_user_password = var.rds_manage_master_user_password
+  rds_storage_encrypted           = var.rds_storage_encrypted
+  rds_backup_retention_period     = var.rds_backup_retention_period
+  rds_skip_final_snapshot         = var.rds_skip_final_snapshot
+  rds_final_snapshot_identifier   = var.rds_final_snapshot_identifier
+  rds_deletion_protection         = var.rds_deletion_protection
+  rds_apply_immediately           = var.rds_apply_immediately
 }
 
 module "secrets" {
@@ -206,5 +213,4 @@ resource "kubernetes_manifest" "argocd_root_app" {
     }
   }
 }
-
 

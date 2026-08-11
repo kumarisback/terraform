@@ -81,6 +81,48 @@ variable "rds_username" {
 variable "rds_password" {
   description = "Database admin password"
   type        = string
-  default     = "ChangeMe123!"
+  default     = null
   sensitive   = true
+}
+
+variable "rds_manage_master_user_password" {
+  description = "Whether AWS Secrets Manager should manage the RDS master user password."
+  type        = bool
+  default     = true
+}
+
+variable "rds_storage_encrypted" {
+  description = "Whether to encrypt RDS storage."
+  type        = bool
+  default     = true
+}
+
+variable "rds_backup_retention_period" {
+  description = "Number of days to retain RDS automated backups."
+  type        = number
+  default     = 7
+}
+
+variable "rds_skip_final_snapshot" {
+  description = "Whether to skip a final snapshot when deleting RDS."
+  type        = bool
+  default     = false
+}
+
+variable "rds_final_snapshot_identifier" {
+  description = "Final snapshot identifier to use when deleting RDS with final snapshots enabled."
+  type        = string
+  default     = null
+}
+
+variable "rds_deletion_protection" {
+  description = "Whether deletion protection is enabled for RDS."
+  type        = bool
+  default     = true
+}
+
+variable "rds_apply_immediately" {
+  description = "Whether RDS modifications are applied immediately."
+  type        = bool
+  default     = false
 }

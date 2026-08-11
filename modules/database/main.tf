@@ -111,23 +111,39 @@ resource "aws_db_subnet_group" "rds" {
 
 # RDS database instance
 resource "aws_db_instance" "rds" {
-  count                  = var.enable_rds ? 1 : 0
-  identifier             = "${var.name}-${var.environment}-rds"
-  engine                 = var.rds_engine
-  engine_version         = var.rds_engine_version
-  instance_class         = var.rds_instance_class
-  allocated_storage      = var.rds_allocated_storage
-  db_subnet_group_name   = aws_db_subnet_group.rds[0].name
-  vpc_security_group_ids = [aws_security_group.rds[0].id]
-  username               = var.rds_username
-  password               = var.rds_password
-  db_name                = var.rds_db_name
-  skip_final_snapshot    = true
-  publicly_accessible    = false
-  deletion_protection    = false
-  apply_immediately      = true
+  count                       = var.enable_rds ? 1 : 0
+  identifier                  = "${var.name}-${var.environment}-rds"
+  engine                      = var.rds_engine
+  engine_version              = var.rds_engine_version
+  instance_class              = var.rds_instance_class
+  allocated_storage           = var.rds_allocated_storage
+  db_subnet_group_name        = aws_db_subnet_group.rds[0].name
+  vpc_security_group_ids      = [aws_security_group.rds[0].id]
+  username                    = var.rds_username
+  password                    = var.rds_manage_master_user_password ? null : var.rds_password
+  manage_master_user_password = var.rds_manage_master_user_password
+  db_name                     = var.rds_db_name
+  storage_encrypted           = var.rds_storage_encrypted
+  backup_retention_period     = var.rds_backup_retention_period
+  skip_final_snapshot         = var.rds_skip_final_snapshot
+  final_snapshot_identifier   = var.rds_skip_final_snapshot ? null : var.rds_final_snapshot_identifier
+  publicly_accessible         = false
+  deletion_protection         = var.rds_deletion_protection
+  apply_immediately           = var.rds_apply_immediately
 
   tags = merge(local.common_tags, {
     Name = "${var.name}-${var.environment}-rds"
   })
+
+  lifecycle {
+    precondition {
+      condition     = var.rds_manage_master_user_password || var.rds_password != null
+      error_message = "Set rds_password when rds_manage_master_user_password is false."
+    }
+
+    precondition {
+      condition     = var.rds_skip_final_snapshot || var.rds_final_snapshot_identifier != null
+      error_message = "Set rds_final_snapshot_identifier when rds_skip_final_snapshot is false."
+    }
+  }
 }
