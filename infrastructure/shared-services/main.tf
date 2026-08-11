@@ -74,6 +74,7 @@ module "jenkins" {
   # Jenkins will be placed in the first public subnet.
   subnet_id = module.networking.public_subnet_ids[0]
 
-  instance_type       = var.jenkins_instance_type
-  allowed_cidr_blocks = var.jenkins_allowed_cidrs
+  instance_type              = var.jenkins_instance_type
+  allowed_cidr_blocks        = var.jenkins_allowed_cidrs
+  terraform_deploy_role_arns = var.jenkins_terraform_deploy_role_arns
 }

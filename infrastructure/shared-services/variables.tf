@@ -64,9 +64,15 @@ variable "jenkins_allowed_cidrs" {
   description = "CIDR blocks allowed to access Jenkins"
   type        = list(string)
 
-  # For testing only.
-  # Restrict this to your public IP for real use.
+  # Learning only: this keeps the Jenkins dashboard reachable from your internet.
+  # Restrict this to your public IP or VPN CIDR before using it for real workloads.
   default = ["0.0.0.0/0"]
+}
+
+variable "jenkins_terraform_deploy_role_arns" {
+  description = "IAM role ARNs Jenkins can assume for Terraform deployments."
+  type        = list(string)
+  default     = []
 }
 
 # ---------------------------------------------------------

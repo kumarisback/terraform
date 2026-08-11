@@ -31,7 +31,13 @@ variable "ami_id" {
 }
 
 variable "allowed_cidr_blocks" {
-  description = "CIDR blocks allowed to access Jenkins"
+  description = "CIDR blocks allowed to access Jenkins. For learning this may be 0.0.0.0/0, but production should use your IP or VPN CIDR."
   type        = list(string)
   default     = ["0.0.0.0/0"]
+}
+
+variable "terraform_deploy_role_arns" {
+  description = "IAM role ARNs Jenkins is allowed to assume for Terraform deployments. Prefer one scoped role per environment."
+  type        = list(string)
+  default     = []
 }

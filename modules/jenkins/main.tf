@@ -22,19 +22,22 @@ resource "aws_iam_role_policy_attachment" "ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
 
-resource "aws_iam_role_policy_attachment" "terraform_s3" {
-  role       = aws_iam_role.this.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-}
+resource "aws_iam_role_policy" "assume_terraform_deploy_roles" {
+  count = length(var.terraform_deploy_role_arns) > 0 ? 1 : 0
 
-resource "aws_iam_role_policy_attachment" "dynamodb" {
-  role       = aws_iam_role.this.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
-}
+  name = "${var.name}-${var.environment}-assume-terraform-deploy-roles"
+  role = aws_iam_role.this.id
 
-resource "aws_iam_role_policy_attachment" "administrator" {
-  role       = aws_iam_role.this.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "sts:AssumeRole"
+        Resource = var.terraform_deploy_role_arns
+      }
+    ]
+  })
 }
 
 
@@ -49,6 +52,7 @@ resource "aws_security_group" "this" {
   vpc_id      = var.vpc_id
 
   ingress {
+    # Learning-only default can be public. Restrict this to your public IP or VPN CIDR outside of labs.
     description = "Jenkins UI"
     from_port   = 8080
     to_port     = 8080
@@ -57,6 +61,7 @@ resource "aws_security_group" "this" {
   }
 
   ingress {
+    # Learning-only default can be public. Restrict SSH heavily or use SSM Session Manager outside of labs.
     description = "SSH"
     from_port   = 22
     to_port     = 22
