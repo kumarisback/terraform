@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.2"
+  required_version = ">= 1.12, < 2.0"
 
   backend "s3" {}
 
@@ -213,4 +213,3 @@ resource "kubernetes_manifest" "argocd_root_app" {
     }
   }
 }
-

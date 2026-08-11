@@ -9,7 +9,7 @@ Welcome! This repository is your starting point for creating the cloud infrastru
 ## Prerequisites
 Before you begin, ensure you have:
 1. **AWS CLI** installed and authenticated (`aws configure`) with Administrator permissions.
-2. **Terraform** installed (v1.2+).
+2. **Terraform** installed (v1.12+).
 3. **kubectl** installed (to interact with the cluster later).
 
 ---
