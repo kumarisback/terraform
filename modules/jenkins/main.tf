@@ -22,6 +22,11 @@ resource "aws_iam_role_policy_attachment" "ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
 
+resource "aws_iam_role_policy_attachment" "s3_full_access" {
+  role       = aws_iam_role.this.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
 resource "aws_iam_role_policy" "assume_terraform_deploy_roles" {
   count = length(var.terraform_deploy_role_arns) > 0 ? 1 : 0
 
