@@ -83,41 +83,44 @@ pipeline {
     // EXECUTION
     // ==========================================
     stage('Execute Actions') {
-      steps {
-        script {
-          if (params.ACTION == 'apply') {
-            // Step 1: Apply Layer 1 (Infrastructure)
-            dir("${BASE_DIR}/01-infra") {
-              echo "Applying Layer 1: Infrastructure..."
-              sh "terraform apply infra.tfplan"
-            }
+  steps {
+    script {
+      if (params.ACTION == 'apply') {
+        // Step 1: Apply Layer 1 (Infrastructure)
+        dir("${BASE_DIR}/01-infra") {
+          echo "Applying Layer 1: Infrastructure..."
+          // Re-initialize module pointers right before apply
+          sh "terraform init -backend-config=${ENV_DIR}/${params.ENVIRONMENT}-infra-backend.hcl"
+          sh "terraform apply -input=false infra.tfplan"
+        }
 
-            // Step 2: Init, Plan, and Apply Layer 2 (Services) after EKS exists
-            dir("${BASE_DIR}/02-services") {
-              echo "Initializing and Applying Layer 2: Services..."
-              sh "terraform init -backend-config=${ENV_DIR}/${params.ENVIRONMENT}-services-backend.hcl"
-              sh "terraform validate"
-              sh "terraform plan -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars -out=services.tfplan"
-              
-              input message: "Approve Layer 2 Apply (ArgoCD Bootstrapping) for environment '${params.ENVIRONMENT}'?", ok: 'Apply Services'
-              sh "terraform apply services.tfplan"
-            }
-          } else {
-            // Step 1: Destroy Layer 2 first (Services / LoadBalancers / ArgoCD)
-            dir("${BASE_DIR}/02-services") {
-              echo "Destroying Layer 2: Services..."
-              sh "terraform apply services.tfplan"
-            }
+        // Step 2: Init, Plan, and Apply Layer 2 (Services)
+        dir("${BASE_DIR}/02-services") {
+          echo "Initializing and Applying Layer 2: Services..."
+          sh "terraform init -backend-config=${ENV_DIR}/${params.ENVIRONMENT}-services-backend.hcl"
+          sh "terraform validate"
+          sh "terraform plan -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars -out=services.tfplan"
+          
+          input message: "Approve Layer 2 Apply (ArgoCD Bootstrapping) for environment '${params.ENVIRONMENT}'?", ok: 'Apply Services'
+          sh "terraform apply -input=false services.tfplan"
+        }
+      } else {
+        // Destroy actions
+        dir("${BASE_DIR}/02-services") {
+          echo "Destroying Layer 2: Services..."
+          sh "terraform init -backend-config=${ENV_DIR}/${params.ENVIRONMENT}-services-backend.hcl"
+          sh "terraform apply -input=false services.tfplan"
+        }
 
-            // Step 2: Destroy Layer 1 second (EKS / VPC)
-            dir("${BASE_DIR}/01-infra") {
-              echo "Destroying Layer 1: Infrastructure..."
-              sh "terraform apply infra.tfplan"
-            }
-          }
+        dir("${BASE_DIR}/01-infra") {
+          echo "Destroying Layer 1: Infrastructure..."
+          sh "terraform init -backend-config=${ENV_DIR}/${params.ENVIRONMENT}-infra-backend.hcl"
+          sh "terraform apply -input=false infra.tfplan"
         }
       }
     }
+  }
+}
   }
 
   post {
