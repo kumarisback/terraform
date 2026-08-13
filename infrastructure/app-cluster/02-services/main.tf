@@ -43,15 +43,14 @@ resource "helm_release" "argocd_root_app" {
 
   values = [
     yamlencode({
-      applications = [
-        {
-          name      = "root-app"
+      applications = {
+        root-app = {
           namespace = "argocd"
           project   = "default"
           source = {
-            repoURL        = var.argocd_gitops_repo_url
-            targetRevision = var.argocd_gitops_repo_revision
-            path           = var.argocd_gitops_repo_path
+            repoURL        = tostring(var.argocd_gitops_repo_url)
+            targetRevision = tostring(var.argocd_gitops_repo_revision)
+            path           = tostring(var.argocd_gitops_repo_path)
           }
           destination = {
             server    = "https://kubernetes.default.svc"
@@ -64,7 +63,7 @@ resource "helm_release" "argocd_root_app" {
             }
           }
         }
-      ]
+      }
     })
   ]
 }
