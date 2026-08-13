@@ -9,18 +9,23 @@ output "vpc_cidr_block" {
 }
 
 output "public_route_table_id" {
-  description = "Route table ID for the shared services VPC's public subnets (where Jenkins runs)"
+  description = "Route table ID for the shared services VPC's public subnets"
   value       = module.networking.public_route_table_id
 }
 
-output "jenkins_public_ip" {
-  description = "Public IP address of Jenkins"
-  value       = module.jenkins.public_ip
+output "private_route_table_id" {
+  description = "Route table ID for the shared services VPC's private subnets (where Jenkins now runs)"
+  value       = module.networking.private_route_table_id
 }
 
-output "jenkins_url" {
-  description = "Jenkins URL"
-  value       = "http://${module.jenkins.public_ip}:8080"
+output "jenkins_private_ip" {
+  description = "Private IP address of Jenkins (reachable via SSM port-forward or from inside the VPC/VPN)"
+  value       = module.jenkins.private_ip
+}
+
+output "jenkins_instance_id" {
+  description = "EC2 instance ID of Jenkins — needed for `aws ssm start-session --target <this>`"
+  value       = module.jenkins.instance_id
 }
 
 output "ecr_repository_urls" {

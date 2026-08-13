@@ -48,14 +48,14 @@ resource "aws_route" "to_shared_services" {
   vpc_peering_connection_id = aws_vpc_peering_connection.shared_services[0].id
 }
 
-# Route from shared-services' public subnet (where Jenkins runs) to this
-# environment. Owned by this state even though the route table itself
-# belongs to shared-services' state — Terraform tracks the aws_route
-# resource independently of the route table it's attached to, so this is
-# safe as long as shared-services' route table itself isn't replaced.
+# Route from shared-services' private subnet (where Jenkins runs — it has no
+# public IP) to this environment. Owned by this state even though the route
+# table itself belongs to shared-services' state — Terraform tracks the
+# aws_route resource independently of the route table it's attached to, so
+# this is safe as long as shared-services' route table itself isn't replaced.
 resource "aws_route" "from_shared_services" {
   count                     = var.peer_with_shared_services ? 1 : 0
-  route_table_id            = data.terraform_remote_state.shared_services[0].outputs.public_route_table_id
+  route_table_id            = data.terraform_remote_state.shared_services[0].outputs.private_route_table_id
   destination_cidr_block    = var.vpc_cidr
   vpc_peering_connection_id = aws_vpc_peering_connection.shared_services[0].id
 }

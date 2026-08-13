@@ -3,7 +3,8 @@ project_name          = "microservices"
 environment           = "shared-services"
 jenkins_instance_type = "t3.medium"
 
-# Learning only: public access lets you open the Jenkins dashboard from your internet.
-# Before real use, replace this with your public IP as /32 or a VPN CIDR.
-jenkins_allowed_cidrs = ["0.0.0.0/0"]
+# Jenkins has no public IP and no open inbound port by default — access it
+# via `aws ssm start-session` (see README.md). Only set this to a VPN/office
+# CIDR if you specifically want a direct network path from inside the VPC.
+jenkins_allowed_cidrs = []
 ecr_repositories      = ["user-service", "order-service", "frontend"]

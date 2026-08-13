@@ -66,12 +66,9 @@ variable "jenkins_instance_type" {
 }
 
 variable "jenkins_allowed_cidrs" {
-  description = "CIDR blocks allowed to access Jenkins"
+  description = "CIDR blocks allowed direct SSH/HTTP access to Jenkins. Empty by default — access is via `aws ssm start-session` instead (see README.md)."
   type        = list(string)
-
-  # Learning only: this keeps the Jenkins dashboard reachable from your internet.
-  # Restrict this to your public IP or VPN CIDR before using it for real workloads.
-  default = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "jenkins_terraform_deploy_role_arns" {

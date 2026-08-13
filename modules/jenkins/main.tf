@@ -25,6 +25,15 @@ resource "aws_iam_role_policy_attachment" "ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
 
+# Lets you reach Jenkins (SSH shell, or a port-forward tunnel to its web UI)
+# via `aws ssm start-session` without opening any inbound security group rule
+# — SSM's agent only makes outbound connections. This is the default access
+# path now that allowed_cidr_blocks defaults to [] (see README.md).
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.this.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_role_policy" "terraform_state_access" {
   count = length(var.state_bucket_names) > 0 ? 1 : 0
 
@@ -162,22 +171,30 @@ resource "aws_security_group" "this" {
   description = "Allow Jenkins access"
   vpc_id      = var.vpc_id
 
-  ingress {
-    # Learning-only default can be public. Restrict this to your public IP or VPN CIDR outside of labs.
-    description = "Jenkins UI"
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_cidr_blocks
+  # No ingress rule is created at all when allowed_cidr_blocks is empty (the
+  # default) — reach Jenkins via `aws ssm start-session` instead (see
+  # README.md), which needs no open inbound port. Set allowed_cidr_blocks to
+  # your IP/VPN CIDR only if you specifically want direct SSH/HTTP access.
+  dynamic "ingress" {
+    for_each = length(var.allowed_cidr_blocks) > 0 ? [1] : []
+    content {
+      description = "Jenkins UI"
+      from_port   = 8080
+      to_port     = 8080
+      protocol    = "tcp"
+      cidr_blocks = var.allowed_cidr_blocks
+    }
   }
 
-  ingress {
-    # Learning-only default can be public. Restrict SSH heavily or use SSM Session Manager outside of labs.
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_cidr_blocks
+  dynamic "ingress" {
+    for_each = length(var.allowed_cidr_blocks) > 0 ? [1] : []
+    content {
+      description = "SSH"
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      cidr_blocks = var.allowed_cidr_blocks
+    }
   }
 
   egress {
@@ -211,12 +228,17 @@ locals {
 }
 
 resource "aws_instance" "jenkins" {
-  ami                         = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux_2023.id
-  instance_type               = var.instance_type
-  subnet_id                   = var.subnet_id
-  vpc_security_group_ids      = [aws_security_group.this.id]
-  iam_instance_profile        = aws_iam_instance_profile.this.name
-  associate_public_ip_address = true
+  ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux_2023.id
+  instance_type          = var.instance_type
+  subnet_id              = var.subnet_id
+  vpc_security_group_ids = [aws_security_group.this.id]
+  iam_instance_profile   = aws_iam_instance_profile.this.name
+
+  # No public IP — Jenkins now lives in a private subnet and is reached via
+  # `aws ssm start-session` (outbound-only) or, if allowed_cidr_blocks is set,
+  # a direct connection from inside the VPC/VPN. Outbound internet access for
+  # package installs still works through the shared-services NAT gateway.
+  associate_public_ip_address = false
 
   user_data = <<-EOF
 #!/bin/bash

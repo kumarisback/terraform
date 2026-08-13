@@ -31,9 +31,9 @@ variable "ami_id" {
 }
 
 variable "allowed_cidr_blocks" {
-  description = "CIDR blocks allowed to access Jenkins. For learning this may be 0.0.0.0/0, but production should use your IP or VPN CIDR."
+  description = "CIDR blocks allowed direct SSH/HTTP access to Jenkins. Empty by default — access is via `aws ssm start-session` instead (see README.md), which needs no open inbound port. Only set this if you specifically want a direct network path (e.g. from a VPN CIDR)."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "terraform_deploy_role_arns" {

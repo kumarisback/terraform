@@ -73,8 +73,10 @@ module "jenkins" {
   # shared-services Terraform configuration.
   vpc_id = module.networking.vpc_id
 
-  # Jenkins will be placed in the first public subnet.
-  subnet_id = module.networking.public_subnet_ids[0]
+  # Private subnet — no public IP, no inbound exposure. Outbound internet
+  # access (for package installs) goes through the NAT gateway; inbound
+  # access is via `aws ssm start-session` (see README.md).
+  subnet_id = module.networking.private_app_subnet_ids[0]
 
   instance_type              = var.jenkins_instance_type
   allowed_cidr_blocks        = var.jenkins_allowed_cidrs
