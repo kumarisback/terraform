@@ -7,6 +7,10 @@
 .terraform/
 .terraform.lock.hcl
 
+# Ignore local plan output files
+*.tfplan
+tfplan
+
 # Ignore secret variable files
 *.secret.tfvars
 secrets.tfvars
