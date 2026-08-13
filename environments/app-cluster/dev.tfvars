@@ -10,7 +10,7 @@ enable_nat_gateway        = true
 # EKS API access.
 # Best practice: set this to your public IP as /32 or a VPN CIDR.
 eks_endpoint_public_access = false
-eks_public_access_cidrs    = [3.80.161.127/32]
+eks_public_access_cidrs    = ["3.80.161.127/32"]
 
 # ArgoCD UI Exposure Configuration.
 # Learning only: public access lets you open the ArgoCD dashboard from your internet.
