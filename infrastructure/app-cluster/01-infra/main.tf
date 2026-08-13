@@ -1,5 +1,5 @@
 module "networking" {
-  source = "../../../modules/networking"
+  source = "../../modules/networking"
 
   name                      = var.project_name
   environment               = var.environment
@@ -11,7 +11,7 @@ module "networking" {
 }
 
 module "eks" {
-  source = "../../../modules/eks"
+  source = "../../modules/eks"
 
   name                   = var.project_name
   environment            = var.environment
@@ -28,7 +28,7 @@ module "eks" {
 }
 
 module "database" {
-  source = "../../../modules/database"
+  source = "../../modules/database"
 
   name                            = var.project_name
   environment                     = var.environment
@@ -48,7 +48,7 @@ module "database" {
 }
 
 module "secrets" {
-  source        = "../../../modules/secrets"
+  source        = "../../modules/secrets"
   secret_name   = var.secret_name
   manage_secret = true
   secret_values = {
