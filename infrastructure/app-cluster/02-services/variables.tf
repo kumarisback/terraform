@@ -199,3 +199,9 @@ variable "eks_admin_users" {
   type        = list(string)
   default     = []
 }
+
+variable "s3_bucket" {
+  description = "S3 bucket for remote state"
+  type        = string
+  default     = "dev-602367507570-us-east-1-an"
+}
