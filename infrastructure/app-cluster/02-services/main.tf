@@ -56,7 +56,36 @@ resource "helm_release" "external_secrets" {
   ]
 }
 
-# 3. Bootstrap Root Application (App-of-Apps) AFTER ArgoCD, CRDs, and ESO exist
+# 3. AWS Load Balancer Controller — real install, replacing the no-op
+#    placeholder ConfigMap that used to sit under gitops/platform/. Needed for
+#    any Ingress (ALB) or NLB-mode Service; harmless to run even while only
+#    plain type:LoadBalancer Services (classic/NLB via the in-tree provider)
+#    are in use.
+resource "helm_release" "aws_lb_controller" {
+  name             = "aws-load-balancer-controller"
+  repository       = "https://aws.github.io/eks-charts"
+  chart            = "aws-load-balancer-controller"
+  version          = "1.8.1"
+  namespace        = "kube-system"
+  create_namespace = false
+
+  values = [
+    yamlencode({
+      clusterName = data.terraform_remote_state.infra.outputs.cluster_name
+      region      = var.aws_region
+      vpcId       = data.terraform_remote_state.infra.outputs.vpc_id
+      serviceAccount = {
+        create = true
+        name   = "aws-load-balancer-controller"
+        annotations = {
+          "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["aws_lb_controller"]
+        }
+      }
+    })
+  ]
+}
+
+# 4. Bootstrap Root Application (App-of-Apps) AFTER ArgoCD, CRDs, and ESO exist
 resource "helm_release" "argocd_root_app" {
   depends_on = [helm_release.argocd, helm_release.external_secrets]
 

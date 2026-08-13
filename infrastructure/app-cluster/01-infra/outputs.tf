@@ -10,6 +10,10 @@ output "cluster_certificate_authority_data" {
   value = module.eks.cluster_certificate_authority_data
 }
 
+output "vpc_id" {
+  value = module.networking.vpc_id
+}
+
 output "oidc_provider_arn" {
   value = module.eks.oidc_provider_arn
 }

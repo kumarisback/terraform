@@ -1,3 +1,6 @@
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 module "networking" {
   source = "../../../modules/networking"
 
@@ -36,10 +39,16 @@ module "eks" {
           {
             Effect   = "Allow"
             Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-            Resource = "arn:aws:secretsmanager:*:*:secret:${var.project_name}/*"
+            Resource = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*"
           }
         ]
       })
+    }
+
+    aws_lb_controller = {
+      namespace          = "kube-system"
+      service_account    = "aws-load-balancer-controller"
+      inline_policy_json = file("${path.module}/policies/aws-load-balancer-controller-iam-policy.json")
     }
   }
 }
