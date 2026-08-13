@@ -45,8 +45,9 @@ resource "helm_release" "argocd_root_app" {
     yamlencode({
       applications = {
         root-app = {
-          namespace = "argocd"
-          project   = "default"
+          namespace  = "argocd"
+          project    = "default"
+          finalizers = ["resources-finalizer.argocd.argoproj.io"]
           source = {
             repoURL        = tostring(var.argocd_gitops_repo_url)
             targetRevision = tostring(var.argocd_gitops_repo_revision)
