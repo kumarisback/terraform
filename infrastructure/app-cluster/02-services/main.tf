@@ -1,3 +1,4 @@
+# 1. Install core ArgoCD (Services & CRDs)
 resource "helm_release" "argocd" {
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
@@ -23,30 +24,43 @@ resource "helm_release" "argocd" {
 
   values = [
     yamlencode({
-      extraObjects = [
+      crds = {
+        install = true
+      }
+    })
+  ]
+}
+
+# 2. Bootstrap Root Application (App-of-Apps) AFTER ArgoCD and CRDs exist
+resource "helm_release" "argocd_root_app" {
+  depends_on = [helm_release.argocd]
+
+  name       = "argocd-root-app"
+  repository = "https://argoproj.github.io/argo-helm"
+  chart      = "argocd-apps"
+  version    = "2.0.2"
+  namespace  = "argocd"
+
+  values = [
+    yamlencode({
+      applications = [
         {
-          apiVersion = "argoproj.io/v1alpha1"
-          kind       = "Application"
-          metadata = {
-            name      = "root-app"
+          name      = "root-app"
+          namespace = "argocd"
+          project   = "default"
+          source = {
+            repoURL        = var.argocd_gitops_repo_url
+            targetRevision = var.argocd_gitops_repo_revision
+            path           = var.argocd_gitops_repo_path
+          }
+          destination = {
+            server    = "https://kubernetes.default.svc"
             namespace = "argocd"
           }
-          spec = {
-            project = "default"
-            source = {
-              repoURL        = var.argocd_gitops_repo_url
-              targetRevision = var.argocd_gitops_repo_revision
-              path           = var.argocd_gitops_repo_path
-            }
-            destination = {
-              server    = "https://kubernetes.default.svc"
-              namespace = "argocd"
-            }
-            syncPolicy = {
-              automated = {
-                prune    = true
-                selfHeal = true
-              }
+          syncPolicy = {
+            automated = {
+              prune    = true
+              selfHeal = true
             }
           }
         }
