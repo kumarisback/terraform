@@ -14,7 +14,7 @@ resource "aws_secretsmanager_secret" "app_secrets" {
   count = var.manage_secret ? 1 : 0
 
   name                    = var.secret_name
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "app_secrets" {
