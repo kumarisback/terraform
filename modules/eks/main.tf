@@ -120,11 +120,54 @@ resource "aws_eks_cluster" "this" {
 }
 
 
+# Launch template lets the node group enforce IMDSv2 and a configurable root
+# volume size — neither is settable on aws_eks_node_group directly.
+resource "aws_launch_template" "node" {
+  name_prefix = "${var.name}-${var.environment}-eks-node-"
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  # Nodes only ever launch into private subnets (var.private_subnet_ids), but
+  # set this explicitly rather than relying on the subnet's default.
+  network_interfaces {
+    associate_public_ip_address = false
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = var.node_disk_size
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(local.common_tags, {
+      Name = "${var.name}-${var.environment}-eks-node"
+    })
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-${var.environment}-eks-node-lt"
+  })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 resource "aws_eks_node_group" "this" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.name}-${var.environment}-eks-node-group"
   node_role_arn   = aws_iam_role.eks_node_role.arn
   subnet_ids      = var.private_subnet_ids
+  capacity_type   = var.node_capacity_type
 
   scaling_config {
     desired_size = var.node_desired_capacity
@@ -132,7 +175,26 @@ resource "aws_eks_node_group" "this" {
     max_size     = var.node_max_capacity
   }
 
+  update_config {
+    max_unavailable = var.node_update_max_unavailable
+  }
+
+  launch_template {
+    id      = aws_launch_template.node.id
+    version = aws_launch_template.node.latest_version
+  }
+
   instance_types = [var.node_instance_type]
+  labels         = var.node_labels
+
+  dynamic "taint" {
+    for_each = var.node_taints
+    content {
+      key    = taint.value.key
+      value  = taint.value.value
+      effect = taint.value.effect
+    }
+  }
 
   tags = merge(local.common_tags, {
     Name = "${var.name}-${var.environment}-eks-node-group"

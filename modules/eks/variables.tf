@@ -71,6 +71,45 @@ variable "admin_users" {
   default     = []
 }
 
+variable "node_capacity_type" {
+  description = "Capacity type for the node group: ON_DEMAND or SPOT"
+  type        = string
+  default     = "ON_DEMAND"
+
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.node_capacity_type)
+    error_message = "node_capacity_type must be ON_DEMAND or SPOT."
+  }
+}
+
+variable "node_disk_size" {
+  description = "Root EBS volume size (GiB) for worker nodes"
+  type        = number
+  default     = 20
+}
+
+variable "node_update_max_unavailable" {
+  description = "Max number of nodes unavailable during a node group rolling update"
+  type        = number
+  default     = 1
+}
+
+variable "node_labels" {
+  description = "Kubernetes labels to apply to nodes in this node group"
+  type        = map(string)
+  default     = {}
+}
+
+variable "node_taints" {
+  description = "Kubernetes taints to apply to nodes in this node group"
+  type = list(object({
+    key    = string
+    value  = string
+    effect = string
+  }))
+  default = []
+}
+
 variable "irsa_roles" {
   description = "IRSA roles to create for in-cluster controllers, keyed by a short name (e.g. \"external_secrets\", \"aws_lb_controller\"). Each entry creates one IAM role trusting this cluster's OIDC provider for the given namespace/service account."
   type = map(object({
