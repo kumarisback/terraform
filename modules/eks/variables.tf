@@ -70,3 +70,14 @@ variable "admin_users" {
   type        = list(string)
   default     = []
 }
+
+variable "irsa_roles" {
+  description = "IRSA roles to create for in-cluster controllers, keyed by a short name (e.g. \"external_secrets\", \"aws_lb_controller\"). Each entry creates one IAM role trusting this cluster's OIDC provider for the given namespace/service account."
+  type = map(object({
+    namespace          = string
+    service_account    = string
+    policy_arns        = optional(list(string), [])
+    inline_policy_json = optional(string)
+  }))
+  default = {}
+}

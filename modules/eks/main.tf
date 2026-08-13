@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+  }
+}
+
 locals {
   common_tags = {
     Environment = var.environment
@@ -146,4 +155,72 @@ resource "aws_eks_access_policy_association" "admins" {
   access_scope {
     type = "cluster"
   }
+}
+
+# ---------------------------------------------------------
+# IRSA (IAM Roles for Service Accounts)
+#
+# In-cluster controllers (External Secrets Operator, AWS Load Balancer
+# Controller, etc.) need to call AWS APIs as a specific Kubernetes
+# ServiceAccount, not as the node role. That requires an OIDC identity
+# provider registered for this cluster's issuer, plus one IAM role per
+# controller trusting that provider for a specific namespace/ServiceAccount.
+# ---------------------------------------------------------
+
+data "tls_certificate" "eks_oidc" {
+  url = aws_eks_cluster.this.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "eks_oidc" {
+  url             = aws_eks_cluster.this.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks_oidc.certificates[0].sha1_fingerprint]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-${var.environment}-eks-oidc"
+  })
+}
+
+resource "aws_iam_role" "irsa" {
+  for_each = var.irsa_roles
+
+  name = "${var.name}-${var.environment}-irsa-${each.key}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = aws_iam_openid_connect_provider.eks_oidc.arn }
+      Condition = {
+        StringEquals = {
+          "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:sub" = "system:serviceaccount:${each.value.namespace}:${each.value.service_account}"
+          "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name}-${var.environment}-irsa-${each.key}"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "irsa_managed" {
+  for_each = { for pair in flatten([
+    for role_key, role in var.irsa_roles : [
+      for policy_arn in role.policy_arns : { key = "${role_key}::${policy_arn}", role_key = role_key, policy_arn = policy_arn }
+    ]
+  ]) : pair.key => pair }
+
+  role       = aws_iam_role.irsa[each.value.role_key].name
+  policy_arn = each.value.policy_arn
+}
+
+resource "aws_iam_role_policy" "irsa_inline" {
+  for_each = { for k, v in var.irsa_roles : k => v.inline_policy_json if v.inline_policy_json != null }
+
+  name   = "${var.name}-${var.environment}-irsa-${each.key}-inline"
+  role   = aws_iam_role.irsa[each.key].id
+  policy = each.value
 }
