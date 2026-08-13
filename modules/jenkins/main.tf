@@ -68,6 +68,29 @@ resource "aws_iam_role_policy" "assume_terraform_deploy_roles" {
   })
 }
 
+resource "aws_iam_role_policy" "jenkins_ec2_read" {
+  name = "${var.name}-${var.environment}-jenkins-ec2-read"
+  role = aws_iam_role.this.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeVpcs",
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeInternetGateways",
+          "ec2:DescribeNatGateways"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
 
 resource "aws_iam_instance_profile" "this" {
   name = "${var.name}-${var.environment}-jenkins-profile"
