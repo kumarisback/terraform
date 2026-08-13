@@ -169,6 +169,127 @@ about, or `terraform output -raw <name>` for one value without quotes:
 
 ---
 
+## Step 5: Granting Roles/Policies, and Making Things Public
+
+This repo is built so a fork can add a new service, grant it exactly the
+AWS access it needs, and expose it publicly — all through config changes,
+no code changes required for the common cases.
+
+### Grant a human admin access to an EKS cluster
+
+Add their IAM user/role ARN to `eks_admin_users` in the relevant
+`environments/app-cluster/<env>.tfvars`, then re-apply Layer 1:
+```hcl
+eks_admin_users = ["arn:aws:iam::<account-id>:user/<name>"]
+```
+
+### Give an in-cluster controller its own AWS permissions (IRSA)
+
+Don't widen the node role — give the controller its own scoped IAM role
+instead. Add an entry to the `irsa_roles` map passed to `module "eks"` in
+`infrastructure/app-cluster/01-infra/main.tf` (the `external_secrets` and
+`aws_lb_controller` entries already there are examples to copy):
+```hcl
+irsa_roles = {
+  my_controller = {
+    namespace       = "kube-system"          # or wherever it runs
+    service_account = "my-controller-sa"     # must match the chart's SA name
+    policy_arns     = ["arn:aws:iam::aws:policy/SomeManagedPolicy"] # AWS managed policy, or:
+    inline_policy_json = jsonencode({         # a custom, tightly scoped policy
+      Version = "2012-10-17"
+      Statement = [{ Effect = "Allow", Action = ["..."], Resource = "..." }]
+    })
+  }
+}
+```
+Re-apply Layer 1, then read the resulting ARN in Layer 2 via
+`data.terraform_remote_state.infra.outputs.irsa_role_arns["my_controller"]`
+and annotate that Helm chart's ServiceAccount with
+`eks.amazonaws.com/role-arn` — exactly as `helm_release.external_secrets`
+and `helm_release.aws_lb_controller` already do in
+`infrastructure/app-cluster/02-services/main.tf`.
+
+### Give Jenkins additional AWS permissions
+
+Jenkins' policy (`modules/jenkins/main.tf`) is broad-but-scoped: full CRUD
+within EC2/EKS/RDS/ElastiCache, but IAM/Secrets Manager/SSM are all
+restricted to this project's name prefix. If a new service needs Jenkins to
+touch another AWS service, add a new statement to
+`aws_iam_role_policy.jenkins_terraform_provisioner`, scoped to a specific
+resource ARN pattern — never `Resource = "*"` for anything beyond the
+EC2/EKS/RDS/ElastiCache statement that's already there for a reason (see
+the comment above it).
+
+For access to resources outside this account/project entirely, prefer
+`jenkins_terraform_deploy_role_arns` in `shared-services.tfvars` — Jenkins
+assumes that role via STS instead of holding the permissions itself.
+
+### Make Jenkins reachable from the network again
+
+Set `jenkins_allowed_cidrs` in
+`environments/shared-services/shared-services.tfvars` to your IP/VPN CIDR
+and re-apply. This opens SSH (22) and the UI (8080) on Jenkins' security
+group from those addresses only — Jenkins still has no public IP, so this
+only helps from inside the VPC or over a VPN into it. For access from
+anywhere, use the SSM flow in Step 4 instead of widening this.
+
+### Make ArgoCD's UI public again
+
+Set, per environment, in `environments/app-cluster/<env>.tfvars`:
+```hcl
+enable_argocd_loadbalancer = true
+argocd_allowed_cidrs       = ["<your-ip>/32"] # never 0.0.0.0/0 beyond a quick throwaway test
+```
+Re-apply Layer 2 (`02-services`).
+
+### Expose a new microservice publicly
+
+Two options, both already supported end-to-end by this repo:
+
+- **Simple, no host/path routing needed**: set the Service's
+  `spec.type: LoadBalancer` in `gitops/apps/base/<service>/service.yaml` —
+  AWS provisions a load balancer automatically (same as `frontend` today).
+  No Terraform change needed.
+- **Host/path-based routing, TLS, or multiple services behind one ALB**: add
+  an `Ingress` instead, annotated for the AWS Load Balancer Controller
+  (already installed via Terraform in `02-services`):
+  ```yaml
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: my-service
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+  spec:
+    rules:
+      - host: my-service.example.com
+        http:
+          paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service: { name: my-service, port: { number: 80 } }
+  ```
+
+### Deploy a brand-new service end-to-end
+
+1. **ECR**: add the repo name to `ecr_repositories` in
+   `environments/shared-services/shared-services.tfvars`, re-apply
+   shared-services.
+2. **Manifests**: copy the pattern in `gitops/apps/base/frontend/` into
+   `gitops/apps/base/<service>/`, add it to
+   `gitops/apps/base/kustomization.yaml`'s `resources`, and add an
+   `images:` entry per environment — see the gitops repo's README,
+   "Adding a Brand New Microservice," for the full walkthrough.
+3. **AWS permissions, if the service needs any**: give it its own IRSA
+   role as described above instead of widening the node role.
+4. **Push**: commit to the gitops repo's `main` branch. ArgoCD syncs it
+   automatically — no `kubectl apply`, no re-running Terraform, unless the
+   service needs new AWS-side resources (ECR repo, IRSA role, etc.).
+
+---
+
 ## (Alternative) Deploying via Jenkins
 
 If you prefer CI/CD automation:
