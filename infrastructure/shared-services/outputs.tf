@@ -3,6 +3,16 @@ output "vpc_id" {
   value       = module.networking.vpc_id
 }
 
+output "vpc_cidr_block" {
+  description = "CIDR block of the shared services VPC"
+  value       = module.networking.vpc_cidr_block
+}
+
+output "public_route_table_id" {
+  description = "Route table ID for the shared services VPC's public subnets (where Jenkins runs)"
+  value       = module.networking.public_route_table_id
+}
+
 output "jenkins_public_ip" {
   description = "Public IP address of Jenkins"
   value       = module.jenkins.public_ip

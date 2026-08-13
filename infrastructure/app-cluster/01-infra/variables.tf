@@ -199,3 +199,21 @@ variable "eks_admin_users" {
   type        = list(string)
   default     = []
 }
+
+variable "peer_with_shared_services" {
+  description = "Whether to create a VPC peering connection to the shared-services VPC (where Jenkins runs), so Jenkins can reach this cluster's EKS API endpoint even when it's private-only. Requires shared-services to have been applied first."
+  type        = bool
+  default     = true
+}
+
+variable "shared_services_state_bucket" {
+  description = "S3 bucket holding the shared-services Terraform state, used to read its VPC ID/CIDR/route table for peering."
+  type        = string
+  default     = "dev-602367507570-us-east-1-an"
+}
+
+variable "shared_services_state_key" {
+  description = "S3 key for the shared-services Terraform state."
+  type        = string
+  default     = "shared-services/terraform.tfstate"
+}

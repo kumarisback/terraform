@@ -1,6 +1,65 @@
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
+# ---------------------------------------------------------
+# Peering to the shared-services VPC (Jenkins)
+#
+# Jenkins lives in its own VPC with no route to any app-cluster VPC, so it
+# has no way to reach a private-only EKS API endpoint (staging/prod set
+# eks_endpoint_public_access = false). This peers this environment's VPC to
+# shared-services' so Jenkins can reach the cluster over private networking
+# regardless of public endpoint access.
+#
+# Requires shared-services to already be applied (its state must exist)
+# before this environment's first apply — which matches the documented
+# bootstrap order (shared-services/Jenkins is stood up once, before any
+# app-cluster environment).
+# ---------------------------------------------------------
+
+data "terraform_remote_state" "shared_services" {
+  count   = var.peer_with_shared_services ? 1 : 0
+  backend = "s3"
+  config = {
+    bucket = var.shared_services_state_bucket
+    key    = var.shared_services_state_key
+    region = var.aws_region
+  }
+}
+
+resource "aws_vpc_peering_connection" "shared_services" {
+  count       = var.peer_with_shared_services ? 1 : 0
+  vpc_id      = module.networking.vpc_id
+  peer_vpc_id = data.terraform_remote_state.shared_services[0].outputs.vpc_id
+  auto_accept = true # same account + region, so the requester can self-accept
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-to-shared-services"
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+  }
+}
+
+# Route from this environment's private subnets (where the EKS API's ENIs
+# and worker nodes live) back to Jenkins in shared-services.
+resource "aws_route" "to_shared_services" {
+  count                     = var.peer_with_shared_services ? 1 : 0
+  route_table_id            = module.networking.private_route_table_id
+  destination_cidr_block    = data.terraform_remote_state.shared_services[0].outputs.vpc_cidr_block
+  vpc_peering_connection_id = aws_vpc_peering_connection.shared_services[0].id
+}
+
+# Route from shared-services' public subnet (where Jenkins runs) to this
+# environment. Owned by this state even though the route table itself
+# belongs to shared-services' state — Terraform tracks the aws_route
+# resource independently of the route table it's attached to, so this is
+# safe as long as shared-services' route table itself isn't replaced.
+resource "aws_route" "from_shared_services" {
+  count                     = var.peer_with_shared_services ? 1 : 0
+  route_table_id            = data.terraform_remote_state.shared_services[0].outputs.public_route_table_id
+  destination_cidr_block    = var.vpc_cidr
+  vpc_peering_connection_id = aws_vpc_peering_connection.shared_services[0].id
+}
+
 module "networking" {
   source = "../../../modules/networking"
 
