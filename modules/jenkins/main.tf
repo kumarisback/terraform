@@ -27,24 +27,27 @@ resource "aws_iam_role_policy_attachment" "s3_full_access" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
-resource "aws_iam_role_policy" "terraform_state_lock" {
-  name = "${var.name}-${var.environment}-terraform-state-lock"
+# Added: Full permissions for Jenkins to build & manage cluster infrastructure
+resource "aws_iam_role_policy" "jenkins_terraform_provisioner" {
+  name = "${var.name}-${var.environment}-jenkins-terraform-provisioner"
   role = aws_iam_role.this.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-
     Statement = [
       {
         Effect = "Allow"
-
         Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:DeleteItem"
+          "ec2:*",
+          "eks:*",
+          "iam:*",
+          "rds:*",
+          "elasticache:*",
+          "secretsmanager:*",
+          "ssm:*",
+          "dynamodb:*"
         ]
-
-        Resource = "arn:aws:dynamodb:us-east-1:602367507570:table/dev"
+        Resource = "*"
       }
     ]
   })
@@ -63,30 +66,6 @@ resource "aws_iam_role_policy" "assume_terraform_deploy_roles" {
         Effect   = "Allow"
         Action   = "sts:AssumeRole"
         Resource = var.terraform_deploy_role_arns
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "jenkins_ec2_read" {
-  name = "${var.name}-${var.environment}-jenkins-ec2-read"
-  role = aws_iam_role.this.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:DescribeVpcs",
-          "ec2:DescribeAvailabilityZones",
-          "ec2:DescribeSubnets",
-          "ec2:DescribeSecurityGroups",
-          "ec2:DescribeRouteTables",
-          "ec2:DescribeInternetGateways",
-          "ec2:DescribeNatGateways"
-        ]
-        Resource = "*"
       }
     ]
   })
