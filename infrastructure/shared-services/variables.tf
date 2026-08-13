@@ -80,6 +80,23 @@ variable "jenkins_terraform_deploy_role_arns" {
   default     = []
 }
 
+variable "terraform_state_bucket_names" {
+  description = "S3 bucket names holding Terraform state for every environment Jenkins provisions (dev/staging/prod + shared-services), used to scope Jenkins' S3 permissions."
+  type        = list(string)
+
+  default = [
+    "dev-602367507570-us-east-1-an",
+    "staging-602367507570-us-east-1-an",
+    "prod-602367507570-us-east-1-an"
+  ]
+}
+
+variable "managed_environments" {
+  description = "Environment names Jenkins provisions (used to scope SSM parameter access to /<env>/* paths)."
+  type        = list(string)
+  default     = ["dev", "staging", "prod"]
+}
+
 # ---------------------------------------------------------
 # ECR
 # ---------------------------------------------------------

@@ -79,4 +79,6 @@ module "jenkins" {
   instance_type              = var.jenkins_instance_type
   allowed_cidr_blocks        = var.jenkins_allowed_cidrs
   terraform_deploy_role_arns = var.jenkins_terraform_deploy_role_arns
+  state_bucket_names         = var.terraform_state_bucket_names
+  managed_environments       = var.managed_environments
 }

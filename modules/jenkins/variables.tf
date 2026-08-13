@@ -41,3 +41,15 @@ variable "terraform_deploy_role_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "state_bucket_names" {
+  description = "S3 bucket names holding Terraform state that Jenkins needs read/write access to. Used to scope S3 permissions instead of granting AmazonS3FullAccess."
+  type        = list(string)
+  default     = []
+}
+
+variable "managed_environments" {
+  description = "Environment names Jenkins provisions (used to scope SSM parameter access to /<env>/* paths)."
+  type        = list(string)
+  default     = ["dev", "staging", "prod"]
+}

@@ -22,12 +22,37 @@ resource "aws_iam_role_policy_attachment" "ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
 
-resource "aws_iam_role_policy_attachment" "s3_full_access" {
-  role       = aws_iam_role.this.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+resource "aws_iam_role_policy" "terraform_state_access" {
+  count = length(var.state_bucket_names) > 0 ? 1 : 0
+
+  name = "${var.name}-${var.environment}-terraform-state-access"
+  role = aws_iam_role.this.id
+
+  # Scoped to the specific Terraform state buckets instead of AmazonS3FullAccess,
+  # which granted read/write on every bucket in the account.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = [for b in var.state_bucket_names : "arn:aws:s3:::${b}"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = [for b in var.state_bucket_names : "arn:aws:s3:::${b}/*"]
+      }
+    ]
+  })
 }
 
-# Added: Full permissions for Jenkins to build & manage cluster infrastructure
+# Full permissions for Jenkins to build & manage cluster infrastructure.
+# Kept as service-level wildcards for EC2/EKS/RDS/ElastiCache because Terraform's
+# apply/destroy lifecycle needs broad CRUD across many resource types within each
+# of those services; wildcarding *within* a single service is a standard trade-off
+# for a CI provisioner role. IAM, Secrets Manager, and SSM are scoped down below
+# because those carry account-takeover or cross-environment secret-read risk.
 resource "aws_iam_role_policy" "jenkins_terraform_provisioner" {
   name = "${var.name}-${var.environment}-jenkins-terraform-provisioner"
   role = aws_iam_role.this.id
@@ -36,18 +61,67 @@ resource "aws_iam_role_policy" "jenkins_terraform_provisioner" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid      = "InfraProvisioning"
+        Effect   = "Allow"
+        Action   = ["ec2:*", "eks:*", "rds:*", "elasticache:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ScopedIamForManagedRoles"
         Effect = "Allow"
         Action = [
-          "ec2:*",
-          "eks:*",
-          "iam:*",
-          "rds:*",
-          "elasticache:*",
-          "secretsmanager:*",
-          "ssm:*",
-          "dynamodb:*"
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:GetRole",
+          "iam:TagRole",
+          "iam:PassRole",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:GetRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:CreateInstanceProfile",
+          "iam:DeleteInstanceProfile",
+          "iam:GetInstanceProfile",
+          "iam:AddRoleToInstanceProfile",
+          "iam:RemoveRoleFromInstanceProfile",
+          "iam:CreateAccessEntry",
+          "iam:DeleteAccessEntry"
         ]
+        # Only roles/instance-profiles this project's Terraform creates
+        # (e.g. microservices-dev-eks-cluster-role, microservices-dev-jenkins-role).
+        Resource = [
+          "arn:aws:iam::*:role/${var.name}-*",
+          "arn:aws:iam::*:instance-profile/${var.name}-*"
+        ]
+      },
+      {
+        Sid    = "OidcProviderForIrsa"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateOpenIDConnectProvider",
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:GetOpenIDConnectProvider",
+          "iam:TagOpenIDConnectProvider",
+          "iam:ListOpenIDConnectProviders"
+        ]
+        # OIDC provider ARNs are keyed by issuer host, not role name, so this
+        # can't be scoped by name prefix the way roles above are.
         Resource = "*"
+      },
+      {
+        Sid      = "ScopedSecretsManager"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:*"]
+        Resource = "arn:aws:secretsmanager:*:*:secret:${var.name}/*"
+      },
+      {
+        Sid      = "ScopedSsmParameters"
+        Effect   = "Allow"
+        Action   = ["ssm:*"]
+        Resource = [for env in var.managed_environments : "arn:aws:ssm:*:*:parameter/${env}/*"]
       }
     ]
   })
