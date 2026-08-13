@@ -27,6 +27,29 @@ resource "aws_iam_role_policy_attachment" "s3_full_access" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
+resource "aws_iam_role_policy" "terraform_state_lock" {
+  name = "${var.name}-${var.environment}-terraform-state-lock"
+  role = aws_iam_role.this.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+
+        Resource = "arn:aws:dynamodb:us-east-1:602367507570:table/dev"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "assume_terraform_deploy_roles" {
   count = length(var.terraform_deploy_role_arns) > 0 ? 1 : 0
 
