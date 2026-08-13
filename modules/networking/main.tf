@@ -63,23 +63,31 @@ resource "aws_subnet" "private_data" {
   })
 }
 
+locals {
+  # Multi-AZ NAT needs one route table per AZ, which needs private_app/
+  # private_data subnet lists the same length as public_subnet_cidrs so each
+  # AZ's subnets map to that AZ's route table by index.
+  multi_nat = var.enable_nat_gateway && !var.single_nat_gateway
+  nat_count = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : length(var.public_subnet_cidrs)) : 0
+}
+
 resource "aws_eip" "nat" {
-  count      = var.enable_nat_gateway ? 1 : 0
+  count      = local.nat_count
   domain     = "vpc"
   depends_on = [aws_internet_gateway.this]
 
   tags = merge(local.common_tags, {
-    Name = "${var.name}-${var.environment}-nat-eip"
+    Name = "${var.name}-${var.environment}-nat-eip-${count.index}"
   })
 }
 
 resource "aws_nat_gateway" "this" {
-  count         = var.enable_nat_gateway ? 1 : 0
-  allocation_id = aws_eip.nat[0].id
-  subnet_id     = aws_subnet.public[0].id
+  count         = local.nat_count
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
 
   tags = merge(local.common_tags, {
-    Name = "${var.name}-${var.environment}-nat"
+    Name = "${var.name}-${var.environment}-nat-${count.index}"
   })
 
   depends_on = [aws_internet_gateway.this]
@@ -105,29 +113,30 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_route_table" "private" {
+  count  = local.multi_nat ? length(var.public_subnet_cidrs) : 1
   vpc_id = aws_vpc.main.id
 
   dynamic "route" {
     for_each = var.enable_nat_gateway ? [1] : []
     content {
       cidr_block     = "0.0.0.0/0"
-      nat_gateway_id = aws_nat_gateway.this[0].id
+      nat_gateway_id = local.multi_nat ? aws_nat_gateway.this[count.index].id : aws_nat_gateway.this[0].id
     }
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.name}-${var.environment}-private-rt"
+    Name = "${var.name}-${var.environment}-private-rt-${count.index}"
   })
 }
 
 resource "aws_route_table_association" "private_app" {
   count          = length(aws_subnet.private_app)
   subnet_id      = aws_subnet.private_app[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = local.multi_nat ? aws_route_table.private[count.index].id : aws_route_table.private[0].id
 }
 
 resource "aws_route_table_association" "private_data" {
   count          = length(aws_subnet.private_data)
   subnet_id      = aws_subnet.private_data[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = local.multi_nat ? aws_route_table.private[count.index].id : aws_route_table.private[0].id
 }

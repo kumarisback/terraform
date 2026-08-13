@@ -10,8 +10,17 @@ output "public_route_table_id" {
   value = aws_route_table.public.id
 }
 
+output "private_route_table_ids" {
+  value = aws_route_table.private[*].id
+}
+
+# First (or only, in single-NAT mode) private route table. The
+# shared-services VPC peering routes in 01-infra assume single-NAT mode and
+# use this; multi-AZ NAT deployments should use private_route_table_ids
+# instead and add a peering route per AZ if cross-VPC private traffic needs
+# to reach every AZ.
 output "private_route_table_id" {
-  value = aws_route_table.private.id
+  value = aws_route_table.private[0].id
 }
 
 output "public_subnet_ids" {

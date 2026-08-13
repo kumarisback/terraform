@@ -51,6 +51,12 @@ variable "enable_nat_gateway" {
   default     = true
 }
 
+variable "single_nat_gateway" {
+  description = "If true (default), use one shared NAT gateway for all AZs. Set false for one NAT gateway per AZ (recommended for prod)."
+  type        = bool
+  default     = true
+}
+
 variable "cluster_version" {
   description = "EKS cluster version"
   type        = string

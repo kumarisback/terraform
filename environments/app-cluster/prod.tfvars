@@ -6,6 +6,7 @@ public_subnet_cidrs       = ["10.30.1.0/24", "10.30.2.0/24"]
 private_app_subnet_cidrs  = ["10.30.11.0/24", "10.30.12.0/24"]
 private_data_subnet_cidrs = ["10.30.21.0/24", "10.30.22.0/24"]
 enable_nat_gateway        = true
+single_nat_gateway        = false # one NAT gateway per AZ for prod HA
 
 eks_endpoint_public_access = false
 eks_public_access_cidrs    = []

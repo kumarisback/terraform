@@ -43,3 +43,9 @@ variable "enable_nat_gateway" {
   type        = bool
   default     = true
 }
+
+variable "single_nat_gateway" {
+  description = "If true (default), create one NAT gateway in the first public subnet, shared by all private subnets across every AZ — cheaper, but ties every AZ's outbound traffic to a single AZ's NAT. If false, create one NAT gateway (and one private route table) per AZ for high availability; requires private_app_subnet_cidrs and private_data_subnet_cidrs to have the same length as public_subnet_cidrs."
+  type        = bool
+  default     = true
+}
