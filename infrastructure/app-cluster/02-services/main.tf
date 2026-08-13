@@ -31,9 +31,34 @@ resource "helm_release" "argocd" {
   ]
 }
 
-# 2. Bootstrap Root Application (App-of-Apps) AFTER ArgoCD and CRDs exist
+# 2. External Secrets Operator, installed before the GitOps root app so the
+#    ClusterSecretStore/ExternalSecret CRDs it defines exist before ArgoCD
+#    tries to apply CRs of those kinds under platform/ and apps/<env>/.
+resource "helm_release" "external_secrets" {
+  name             = "external-secrets"
+  repository       = "https://charts.external-secrets.io"
+  chart            = "external-secrets"
+  version          = "0.10.4"
+  namespace        = "kube-system"
+  create_namespace = false
+
+  values = [
+    yamlencode({
+      installCRDs = true
+      serviceAccount = {
+        create = true
+        name   = "external-secrets-sa"
+        annotations = {
+          "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["external_secrets"]
+        }
+      }
+    })
+  ]
+}
+
+# 3. Bootstrap Root Application (App-of-Apps) AFTER ArgoCD, CRDs, and ESO exist
 resource "helm_release" "argocd_root_app" {
-  depends_on = [helm_release.argocd]
+  depends_on = [helm_release.argocd, helm_release.external_secrets]
 
   name       = "argocd-root-app"
   repository = "https://argoproj.github.io/argo-helm"

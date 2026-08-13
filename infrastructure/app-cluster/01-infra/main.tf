@@ -25,6 +25,23 @@ module "eks" {
   node_max_capacity      = var.node_max_capacity
   node_instance_type     = var.node_instance_type
   admin_users            = var.eks_admin_users
+
+  irsa_roles = {
+    external_secrets = {
+      namespace       = "kube-system"
+      service_account = "external-secrets-sa"
+      inline_policy_json = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+          {
+            Effect   = "Allow"
+            Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+            Resource = "arn:aws:secretsmanager:*:*:secret:${var.project_name}/*"
+          }
+        ]
+      })
+    }
+  }
 }
 
 module "database" {
