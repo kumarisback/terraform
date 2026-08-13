@@ -8,7 +8,7 @@ pipeline {
 
   environment {
     TERRAFORM_DIR = 'infrastructure/app-cluster'
-    ENV_DIR = "${WORKSPACE}/environments/app-cluster"
+    ENV_DIR       = "${WORKSPACE}/environments/app-cluster"
   }
 
   stages {
@@ -66,10 +66,11 @@ pipeline {
       }
     }
 
-    stage('Terraform Execute (Apply/Destroy)') {
+    stage('Terraform Execute') {
       steps {
         dir(TERRAFORM_DIR) {
-          sh "terraform apply -auto-approve tfplan"
+          // Applying a saved plan file (tfplan) executes exact planned changes (apply or destroy)
+          sh "terraform apply tfplan"
         }
       }
     }
@@ -77,6 +78,10 @@ pipeline {
 
   post {
     always {
+      // Clean up local plan file and workspace
+      dir(TERRAFORM_DIR) {
+        sh 'rm -f tfplan'
+      }
       cleanWs()
     }
   }
