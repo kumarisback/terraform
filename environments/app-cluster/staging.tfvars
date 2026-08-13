@@ -21,10 +21,10 @@ redis_node_type    = "cache.t3.micro"
 secret_name        = "microservices/staging/app-config"
 eks_admin_users    = []
 
-# Learning only: public access lets you open the ArgoCD dashboard from your internet.
-# Before real use, replace this with your public IP as /32 or a VPN CIDR.
-enable_argocd_loadbalancer = true
-argocd_allowed_cidrs       = ["0.0.0.0/0"]
+# ArgoCD UI: no public LoadBalancer — access it via `kubectl port-forward`
+# instead (see README.md).
+enable_argocd_loadbalancer = false
+argocd_allowed_cidrs       = []
 
 argocd_gitops_repo_url      = "https://github.com/kumarisback/gitops.git"
 argocd_gitops_repo_revision = "HEAD"

@@ -171,15 +171,15 @@ variable "secret_name" {
 }
 
 variable "enable_argocd_loadbalancer" {
-  description = "Expose ArgoCD UI via AWS LoadBalancer"
+  description = "Expose ArgoCD UI via a public AWS LoadBalancer. False by default — access it via `kubectl port-forward` instead (see README.md)."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "argocd_allowed_cidrs" {
-  description = "Allowed CIDR blocks to access ArgoCD UI. For learning this may be 0.0.0.0/0, but production should use your IP or VPN CIDR."
+  description = "Allowed CIDR blocks to access ArgoCD UI, only used when enable_argocd_loadbalancer is true."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "argocd_gitops_repo_url" {

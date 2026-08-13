@@ -12,11 +12,10 @@ enable_nat_gateway        = true
 eks_endpoint_public_access = true
 eks_public_access_cidrs    = ["3.80.161.127/32"]
 
-# ArgoCD UI Exposure Configuration.
-# Learning only: public access lets you open the ArgoCD dashboard from your internet.
-# Before real use, replace this with your public IP as /32 or a VPN CIDR.
-enable_argocd_loadbalancer = true
-argocd_allowed_cidrs       = ["0.0.0.0/0"]
+# ArgoCD UI: no public LoadBalancer — access it via `kubectl port-forward`
+# instead (see README.md).
+enable_argocd_loadbalancer = false
+argocd_allowed_cidrs       = []
 
 # EKS Access Configuration
 eks_admin_users = ["arn:aws:iam::602367507570:user/terraform"]
