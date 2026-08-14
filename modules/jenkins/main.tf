@@ -85,6 +85,7 @@ resource "aws_iam_role_policy" "jenkins_terraform_provisioner" {
           "iam:CreateRole",
           "iam:DeleteRole",
           "iam:GetRole",
+          "iam:ListInstanceProfilesForRole",
           "iam:TagRole",
           "iam:PassRole",
           "iam:PutRolePolicy",
