@@ -102,11 +102,10 @@ resource "aws_iam_role_policy" "jenkins_terraform_provisioner" {
           "iam:CreateAccessEntry",
           "iam:DeleteAccessEntry"
         ]
-        # Only roles/instance-profiles this project's Terraform creates
-        # (e.g. microservices-dev-eks-cluster-role, microservices-dev-jenkins-role),
-        # in this account only.
+        # Added the AWS Service-Linked Role for EKS Node Groups alongside your named roles
         Resource = [
           "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.name}-*",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup",
           "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/${var.name}-*"
         ]
       },
@@ -133,11 +132,28 @@ resource "aws_iam_role_policy" "jenkins_terraform_provisioner" {
       {
         Sid    = "ScopedSsmParameters"
         Effect = "Allow"
-        Action = ["ssm:*"]
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:GetParameterHistory",
+          "ssm:GetParametersByPath",
+          "ssm:PutParameter",
+          "ssm:DeleteParameter",
+          "ssm:DeleteParameters",
+          "ssm:AddTagsToResource",
+          "ssm:RemoveTagsFromResource",
+          "ssm:ListTagsForResource"
+        ]
         Resource = [
           for env in var.managed_environments :
           "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${env}/*"
         ]
+      },
+      {
+        Sid      = "SSMDescribeParametersAccountWide"
+        Effect   = "Allow"
+        Action   = ["ssm:DescribeParameters"]
+        Resource = "*"
       }
     ]
   })
