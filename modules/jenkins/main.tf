@@ -126,6 +126,18 @@ resource "aws_iam_role_policy" "jenkins_terraform_provisioner" {
         Resource = "*"
       },
       {
+        Sid    = "AwsServiceLinkedRoles"
+        Effect = "Allow"
+        Action = ["iam:GetRole", "iam:CreateServiceLinkedRole"]
+        # AWS auto-creates service-linked roles (e.g.
+        # AWSServiceRoleForAmazonEKSNodegroup) the first time a feature like
+        # managed node groups is used, checking/creating them with the
+        # calling identity's own permissions — these are AWS-owned roles
+        # under a fixed path, not this project's own role-name prefix, so
+        # they can't be covered by ScopedIamForManagedRoles above.
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/*"
+      },
+      {
         Sid      = "ScopedSecretsManager"
         Effect   = "Allow"
         Action   = ["secretsmanager:*"]
@@ -139,6 +151,17 @@ resource "aws_iam_role_policy" "jenkins_terraform_provisioner" {
           for env in var.managed_environments :
           "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${env}/*"
         ]
+      },
+      {
+        Sid    = "SsmDescribeParameters"
+        Effect = "Allow"
+        Action = ["ssm:DescribeParameters"]
+        # DescribeParameters is a search/list API — AWS does not support
+        # scoping it to a specific parameter ARN, only Resource "*". It's
+        # read-only (lists parameter names/metadata, not values), so this
+        # doesn't expose any parameter's actual value outside the scoped
+        # access above.
+        Resource = "*"
       }
     ]
   })
