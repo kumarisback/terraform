@@ -9,7 +9,7 @@ enable_nat_gateway        = true
 
 # EKS API access.
 # Best practice: set this to your public IP as /32 or a VPN CIDR.
-eks_endpoint_public_access = true
+eks_endpoint_public_access = false
 eks_public_access_cidrs    = []
 
 # ArgoCD UI: no public LoadBalancer — access it via `kubectl port-forward`
