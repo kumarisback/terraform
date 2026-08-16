@@ -72,14 +72,18 @@ data "terraform_remote_state" "infra" {
   }
 }
 
-# Simplify Helm Provider to read local kubeconfig directly
+# Simplify Helm Provider to read local kubeconfig directly.
+# pathexpand() is required here: Terraform does not shell-expand "~" in a
+# plain string, so a bare "~/.kube/config" is treated as a literal relative
+# path (a directory named "~") and never resolves — that's what was causing
+# "Kubernetes cluster unreachable" on every Layer 2 apply.
 provider "helm" {
   kubernetes = {
-    config_path = "~/.kube/config"
+    config_path = pathexpand("~/.kube/config")
   }
 }
 
 # Simplify Kubernetes Provider to read local kubeconfig directly
 provider "kubernetes" {
-  config_path = "~/.kube/config"
+  config_path = pathexpand("~/.kube/config")
 }
