@@ -265,10 +265,10 @@ resource "aws_instance" "jenkins" {
   associate_public_ip_address = false
 
   root_block_device {
-  volume_size = 8
-  volume_type = "gp3"
-  encrypted   = true
-}
+    volume_size = 8
+    volume_type = "gp3"
+    encrypted   = true
+  }
   user_data = <<-EOF
 #!/bin/bash
 set -euxo pipefail
