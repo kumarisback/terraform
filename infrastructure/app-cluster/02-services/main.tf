@@ -66,6 +66,7 @@ resource "helm_release" "aws_lb_controller" {
   version          = "1.8.1"
   namespace        = "kube-system"
   create_namespace = false
+  cleanup_on_fail  = true # Add this line
 
   values = [
     yamlencode({
