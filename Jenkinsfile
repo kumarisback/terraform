@@ -7,8 +7,10 @@ pipeline {
   }
 
   environment {
-    BASE_DIR = 'infrastructure/app-cluster'
-    ENV_DIR  = "${WORKSPACE}/environments/app-cluster"
+    BASE_DIR           = 'infrastructure/app-cluster'
+    ENV_DIR            = "${WORKSPACE}/environments/app-cluster"
+    AWS_DEFAULT_REGION = 'us-east-1'
+    AWS_REGION         = 'us-east-1'
   }
 
   stages {
@@ -53,8 +55,7 @@ pipeline {
     // ==========================================
     // LAYER 2: SERVICES (ArgoCD & K8s Bootstrap)
     // ==========================================
-    stage('Layer 2: Init & Validate') {
-      // Skip Layer 2 init/plan on fresh environment creation (apply) until Layer 1 is deployed
+    stage('Layer 2: Init & Validate (Destroy Only)') {
       when {
         expression { params.ACTION == 'destroy' }
       }
@@ -82,9 +83,6 @@ pipeline {
     // ==========================================
     // EXECUTION
     // ==========================================
-    // ==========================================
-    // EXECUTION
-    // ==========================================
     stage('Execute Actions') {
       steps {
         script {
@@ -95,7 +93,7 @@ pipeline {
               sh "terraform apply -auto-approve infra.tfplan"
             }
 
-            // Step 2: Init & Plan Layer 2
+            // Step 2: Init & Apply Layer 2 (Services)
             dir("${BASE_DIR}/02-services") {
               echo "Initializing Layer 2: Services..."
               sh "terraform init -backend-config=${ENV_DIR}/${params.ENVIRONMENT}-services-backend.hcl"
@@ -103,22 +101,25 @@ pipeline {
               
               input message: "Approve Layer 2 Apply (ArgoCD Bootstrapping) for environment '${params.ENVIRONMENT}'?", ok: 'Apply Services'
 
-              // Refresh Kubeconfig to guarantee fresh credentials right before apply
-              sh "aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region us-east-1"
-              
-              // Apply directly using the var-file to prevent using an expired plan token
-              echo "Applying Layer 2: Services..."
-              sh "terraform apply -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars"
+              echo "Refreshing EKS credentials and applying Layer 2..."
+              sh """
+                aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region ${AWS_REGION}
+                export KUBECONFIG=~/.kube/config
+                terraform apply -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars
+              """
             }
           } else {
-            // Step 1: Destroy Layer 2 first
+            // Step 1: Destroy Layer 2 first (Services)
             dir("${BASE_DIR}/02-services") {
               echo "Destroying Layer 2: Services..."
-              sh "aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region us-east-1"
-              sh "terraform destroy -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars"
+              sh """
+                aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region ${AWS_REGION}
+                export KUBECONFIG=~/.kube/config
+                terraform destroy -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars
+              """
             }
 
-            // Step 2: Destroy Layer 1 second
+            // Step 2: Destroy Layer 1 second (Infra)
             dir("${BASE_DIR}/01-infra") {
               echo "Destroying Layer 1: Infrastructure..."
               sh "terraform destroy -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars"
