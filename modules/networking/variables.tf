@@ -49,3 +49,16 @@ variable "single_nat_gateway" {
   type        = bool
   default     = true
 }
+
+variable "public_subnet_tags" {
+  description = "Additional tags for the public subnets"
+  type        = map(string)
+  default     = {}
+}
+
+variable "private_subnet_tags" {
+  description = "Additional tags for the private application subnets"
+  type        = map(string)
+  default     = {}
+}
+
