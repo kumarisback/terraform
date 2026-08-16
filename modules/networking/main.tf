@@ -36,7 +36,7 @@ resource "aws_subnet" "public" {
   availability_zone       = local.availability_zones[count.index]
   map_public_ip_on_launch = true
 
-  tags = merge(local.common_tags, var.public_subnet_tags, {
+  tags = merge(local.common_tags, {
     Name = "${var.name}-${var.environment}-public-${count.index + 1}"
   })
 }
@@ -47,7 +47,7 @@ resource "aws_subnet" "private_app" {
   cidr_block        = var.private_app_subnet_cidrs[count.index]
   availability_zone = local.availability_zones[count.index]
 
-  tags = merge(local.common_tags, var.private_subnet_tags, {
+  tags = merge(local.common_tags, {
     Name = "${var.name}-${var.environment}-private-app-${count.index + 1}"
   })
 }

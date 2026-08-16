@@ -71,18 +71,7 @@ module "networking" {
   private_data_subnet_cidrs = var.private_data_subnet_cidrs
   enable_nat_gateway        = var.enable_nat_gateway
   single_nat_gateway        = var.single_nat_gateway
-
-  public_subnet_tags = {
-    "kubernetes.io/role/elb"                                                   = "1"
-    "kubernetes.io/cluster/${var.project_name}-${var.environment}-eks-cluster" = "shared"
-  }
-
-  private_subnet_tags = {
-    "kubernetes.io/role/internal-elb"                                          = "1"
-    "kubernetes.io/cluster/${var.project_name}-${var.environment}-eks-cluster" = "shared"
-  }
 }
-
 
 module "eks" {
   source = "../../../modules/eks"
