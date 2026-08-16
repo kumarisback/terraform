@@ -41,9 +41,10 @@ resource "aws_vpc_peering_connection" "shared_services" {
 
 # Route from this environment's private subnets (where the EKS API's ENIs
 # and worker nodes live) back to Jenkins in shared-services.
+# Route from ALL of this environment's private subnets back to Jenkins in shared-services
 resource "aws_route" "to_shared_services" {
-  count                     = var.peer_with_shared_services ? 1 : 0
-  route_table_id            = module.networking.private_route_table_id
+  count                     = var.peer_with_shared_services ? length(module.networking.private_route_table_ids) : 0
+  route_table_id            = module.networking.private_route_table_ids[count.index]
   destination_cidr_block    = data.terraform_remote_state.shared_services[0].outputs.vpc_cidr_block
   vpc_peering_connection_id = aws_vpc_peering_connection.shared_services[0].id
 }
