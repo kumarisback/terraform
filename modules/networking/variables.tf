@@ -49,3 +49,15 @@ variable "single_nat_gateway" {
   type        = bool
   default     = true
 }
+
+variable "public_subnet_tags" {
+  description = "Additional tags for the public subnets — e.g. kubernetes.io/role/elb and kubernetes.io/cluster/<name>, required for the AWS Load Balancer Controller's subnet auto-discovery to find them."
+  type        = map(string)
+  default     = {}
+}
+
+variable "private_subnet_tags" {
+  description = "Additional tags for the private application subnets — e.g. kubernetes.io/role/internal-elb and kubernetes.io/cluster/<name>, required for the AWS Load Balancer Controller's subnet auto-discovery to find them."
+  type        = map(string)
+  default     = {}
+}
