@@ -79,6 +79,10 @@ resource "aws_iam_role_policy_attachment" "eks_ecr_read_only" {
   role       = aws_iam_role.eks_node_role.name
 }
 
+data "aws_vpc" "this" {
+  id = var.vpc_id
+}
+
 resource "aws_security_group" "eks_cluster" {
   name        = "${var.name}-${var.environment}-eks-cluster-sg"
   description = "Security group for the EKS cluster"
@@ -94,6 +98,27 @@ resource "aws_security_group" "eks_cluster" {
   tags = merge(local.common_tags, {
     Name = "${var.name}-${var.environment}-eks-cluster-sg"
   })
+}
+
+resource "aws_security_group_rule" "eks_cluster_ingress_vpc" {
+  description       = "Allow inbound HTTPS traffic to EKS control plane from within the VPC"
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = [data.aws_vpc.this.cidr_block]
+  security_group_id = aws_security_group.eks_cluster.id
+}
+
+resource "aws_security_group_rule" "eks_cluster_ingress_private" {
+  count             = length(var.private_access_cidrs) > 0 ? 1 : 0
+  description       = "Allow inbound HTTPS traffic to EKS control plane from peered network or VPN CIDRs"
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = var.private_access_cidrs
+  security_group_id = aws_security_group.eks_cluster.id
 }
 
 resource "aws_eks_cluster" "this" {

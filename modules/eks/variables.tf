@@ -41,6 +41,12 @@ variable "public_access_cidrs" {
   }
 }
 
+variable "private_access_cidrs" {
+  description = "Additional CIDR blocks allowed to reach the private EKS Kubernetes API endpoint (e.g. peered VPC, VPN)."
+  type        = list(string)
+  default     = []
+}
+
 variable "node_desired_capacity" {
   description = "Desired number of worker nodes"
   type        = number

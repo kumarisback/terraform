@@ -32,7 +32,7 @@ variable "enable_rds" {
 variable "enable_elasticache" {
   description = "Enable ElastiCache Redis"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "redis_node_type" {
