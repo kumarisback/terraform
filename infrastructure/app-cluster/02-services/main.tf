@@ -1,5 +1,7 @@
 # 1. Install core ArgoCD (Services & CRDs)
 resource "helm_release" "argocd" {
+  depends_on = [helm_release.aws_lb_controller] # Added wait for ALB controller webhook
+
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
@@ -31,10 +33,10 @@ resource "helm_release" "argocd" {
   ]
 }
 
-# 2. External Secrets Operator, installed before the GitOps root app so the
-#    ClusterSecretStore/ExternalSecret CRDs it defines exist before ArgoCD
-#    tries to apply CRs of those kinds under platform/ and apps/<env>/.
+# 2. External Secrets Operator
 resource "helm_release" "external_secrets" {
+  depends_on = [helm_release.aws_lb_controller] # Added wait for ALB controller webhook
+
   name             = "external-secrets"
   repository       = "https://charts.external-secrets.io"
   chart            = "external-secrets"
@@ -56,11 +58,7 @@ resource "helm_release" "external_secrets" {
   ]
 }
 
-# 3. AWS Load Balancer Controller — real install, replacing the no-op
-#    placeholder ConfigMap that used to sit under gitops/platform/. Needed for
-#    any Ingress (ALB) or NLB-mode Service; harmless to run even while only
-#    plain type:LoadBalancer Services (classic/NLB via the in-tree provider)
-#    are in use.
+# 3. AWS Load Balancer Controller
 resource "helm_release" "aws_lb_controller" {
   name             = "aws-load-balancer-controller"
   repository       = "https://aws.github.io/eks-charts"
@@ -85,7 +83,7 @@ resource "helm_release" "aws_lb_controller" {
   ]
 }
 
-# 4. Bootstrap Root Application (App-of-Apps) AFTER ArgoCD, CRDs, and ESO exist
+# 4. Bootstrap Root Application (App-of-Apps)
 resource "helm_release" "argocd_root_app" {
   depends_on = [helm_release.argocd, helm_release.external_secrets]
 
