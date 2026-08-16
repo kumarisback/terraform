@@ -25,12 +25,12 @@ the fast path so you don't have to read either.
 
 <a id="qr-jenkins"></a>
 
-| | Jenkins UI | ArgoCD UI | `frontend` app |
+| | Jenkins UI | ArgoCD UI | App (frontend + `/api/*`) |
 |---|---|---|---|
-| **Default** | Private (no public IP) | Private (`ClusterIP`, no LoadBalancer) | **Public** (`type: LoadBalancer`) |
-| **Get the URL / connect** | [SSM port-forward ↓](#jenkins-cicd) | [kubectl port-forward ↓](#argocd-gitops-ui) | [kubectl get svc ↓](#public-facing-application-services-eg-frontend) |
+| **Default** | Private (no public IP) | Private (`ClusterIP`, no LoadBalancer) | **Public**, via one shared `Ingress` (ALB) — `frontend` itself is `ClusterIP` |
+| **Get the URL / connect** | [SSM port-forward ↓](#jenkins-cicd) | [kubectl port-forward ↓](#argocd-gitops-ui) | [kubectl get ingress ↓](#public-facing-application-services-eg-frontend) |
 | **Make it public** | [Set `jenkins_allowed_cidrs` ↓](#make-jenkins-reachable-from-the-network-again) | [Set `enable_argocd_loadbalancer` ↓](#make-argocds-ui-public-again) | Already public by default |
-| **Make it private** | Set `jenkins_allowed_cidrs = []`, re-apply `shared-services` | Set `enable_argocd_loadbalancer = false`, re-apply Layer 2 | Change the Service's `type:` to `ClusterIP` in `gitops/apps/base/frontend/service.yaml` |
+| **Make it private** | Set `jenkins_allowed_cidrs = []`, re-apply `shared-services` | Set `enable_argocd_loadbalancer = false`, re-apply Layer 2 | Delete/rename `gitops/apps/base/ingress.yaml` (see [below](#public-facing-application-services-eg-frontend) before doing this — it's also what routes `/api/*` to the backend services) |
 
 **The one-liners**, once you have the instance ID / are `kubectl`-connected:
 
@@ -45,8 +45,8 @@ aws ssm start-session \
 aws eks update-kubeconfig --name microservices-dev-eks-cluster --region us-east-1
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 
-# frontend app's public URL
-kubectl get svc frontend -n development \
+# App's public URL (frontend UI + /api/* routing, both through one ALB)
+kubectl get ingress app-ingress -n development \
   -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 ```
 
@@ -223,20 +223,36 @@ Re-apply Layer 2 (`02-services`). To go back to private-only, set
 <a id="public-facing-application-services-eg-frontend"></a>
 ### Public-facing application services (e.g. `frontend`)
 
-The `frontend` Service (`gitops/apps/base/frontend/service.yaml`) is
-`type: LoadBalancer` — Kubernetes creates a real AWS load balancer for it
-directly; Terraform doesn't track it. Once ArgoCD has synced it, find its
-URL with:
+`frontend`, `order-service`, and `user-service` all sit behind one shared `Ingress`
+(`gitops/apps/base/ingress.yaml`), provisioned as a real AWS ALB by the AWS Load Balancer
+Controller — Terraform doesn't track this ALB directly, same as the old `frontend`
+LoadBalancer Service used to be. `frontend`'s own Service is `ClusterIP` — it's **not**
+reachable directly; the Ingress is the only public entrypoint. This matters because the
+frontend calls its own APIs with same-origin relative paths (e.g. `fetch("/api/auth/signin")`
+in `AuthContext.jsx`) — if `frontend` had its own separate LoadBalancer with no path routing,
+those `/api/*` calls would hit that LoadBalancer directly and never reach a backend service,
+which is exactly the bug this Ingress fixes.
+
+Routing rules (order matters — more specific paths are listed first):
+| Path | Routes to |
+|---|---|
+| `/api/orders` | `order-service` (its Spring context-path is `/api/orders`) |
+| `/api` | `user-service` (auth `/api/auth/*` and tasks `/api/tasks*`, context-path `/api`) |
+| `/` | `frontend` (everything else) |
+
+Once ArgoCD has synced it, find the ALB's URL with:
 ```bash
-kubectl get svc frontend -n <development|staging|production> \
+kubectl get ingress app-ingress -n <development|staging|production> \
   -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 ```
-(or look in the EC2 → Load Balancers console, in the relevant environment's
-VPC, for one tagged `elbv2.k8s.aws/cluster`).
+(or look in the EC2 → Load Balancers console, in the relevant environment's VPC, for one
+tagged `elbv2.k8s.aws/cluster`).
 
-This one is public **by default** — to make it private, change `spec.type` from
-`LoadBalancer` to `ClusterIP` in `gitops/apps/base/frontend/service.yaml` and push; ArgoCD
-will sync the change (and Kubernetes will tear down the AWS load balancer).
+This is public **by default** — to make it private, remove `ingress.yaml` from
+`gitops/apps/base/kustomization.yaml`'s `resources` (or delete the file) and push; ArgoCD
+will tear down the ALB. Note this also removes the only path that routes `/api/*` to the
+backend services, so the frontend's login/signup/tasks calls would stop working unless
+something else (e.g. a reverse proxy baked into the frontend image) takes over that routing.
 
 ### Everything else Terraform created
 
