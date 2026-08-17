@@ -39,6 +39,25 @@ resource "aws_vpc_peering_connection" "shared_services" {
   }
 }
 
+# Peering alone does NOT extend DNS resolution across the connection — by
+# default a peered VPC's resolver won't resolve records in the other VPC's
+# private hosted zones, which includes the one EKS auto-creates for the
+# cluster's private API endpoint. Without this, Jenkins has a working network
+# path to the cluster's ENIs but can't resolve the endpoint hostname to the
+# right address, which surfaces as a connection timeout, not a DNS error.
+resource "aws_vpc_peering_connection_options" "shared_services" {
+  count                     = var.peer_with_shared_services ? 1 : 0
+  vpc_peering_connection_id = aws_vpc_peering_connection.shared_services[0].id
+
+  accepter {
+    allow_remote_vpc_dns_resolution = true
+  }
+
+  requester {
+    allow_remote_vpc_dns_resolution = true
+  }
+}
+
 # Route from this environment's private subnets (where the EKS API's ENIs
 # and worker nodes live) back to Jenkins in shared-services.
 # Route from ALL of this environment's private subnets back to Jenkins in shared-services
