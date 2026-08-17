@@ -113,7 +113,16 @@ pipeline {
             dir("${BASE_DIR}/02-services") {
               echo "Destroying Layer 2: Services..."
               sh """
-                aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region ${AWS_REGION}
+                # Tolerate the cluster already being gone — a normal state to
+                # recover from if a previous destroy got partway through
+                # Layer 1 (which destroys the EKS cluster before networking)
+                # and then failed later on IGW/subnet cleanup. In that case
+                # there's nothing live for this layer's Terraform state to
+                # reach anyway; let `terraform destroy` run against whatever
+                # (if anything) is still in its own state instead of hard-
+                # failing here.
+                aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region ${AWS_REGION} \
+                  || echo "Cluster not found — assuming it was already destroyed in a prior run; continuing."
                 export KUBECONFIG=~/.kube/config
                 terraform destroy -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars
               """
