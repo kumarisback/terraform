@@ -119,6 +119,36 @@ pipeline {
               """
             }
 
+            // Step 1.5: Wait for AWS to actually finish tearing down anything
+            // GitOps-managed that gets an ephemeral public IP on an ENI (the
+            // ALB from gitops/apps/base/ingress.yaml, previously also the
+            // frontend LoadBalancer's ELB). Terraform destroy on Layer 2 only
+            // waits for the Kubernetes objects to delete, not for the AWS-side
+            // cleanup those deletions trigger — that's asynchronous and can
+            // lag a couple of minutes, which is long enough for Layer 1's IGW/
+            // subnet deletion to hit "has some mapped public address(es),
+            // please unmap before detaching" if it starts immediately after.
+            dir("${BASE_DIR}/01-infra") {
+              script {
+                def vpcId = sh(script: "terraform output -raw vpc_id", returnStdout: true).trim()
+                echo "Waiting for all public-IP-mapped ENIs in ${vpcId} to clear before destroying networking..."
+                sh """
+                  for i in \$(seq 1 30); do
+                    COUNT=\$(aws ec2 describe-network-interfaces \
+                      --filters Name=vpc-id,Values=${vpcId} \
+                      --query "length(NetworkInterfaces[?Association.PublicIp!=null])" \
+                      --output text)
+                    echo "Attempt \$i: \$COUNT ENI(s) in ${vpcId} still have a mapped public IP"
+                    if [ "\$COUNT" = "0" ]; then
+                      echo "All clear — no mapped public IPs remain."
+                      break
+                    fi
+                    sleep 10
+                  done
+                """
+              }
+            }
+
             // Step 2: Destroy Layer 1 second (Infra)
             dir("${BASE_DIR}/01-infra") {
               echo "Destroying Layer 1: Infrastructure..."
