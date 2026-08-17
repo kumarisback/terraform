@@ -139,22 +139,30 @@ pipeline {
             // please unmap before detaching" if it starts immediately after.
             dir("${BASE_DIR}/01-infra") {
               script {
-                def vpcId = sh(script: "terraform output -raw vpc_id", returnStdout: true).trim()
-                echo "Waiting for all public-IP-mapped ENIs in ${vpcId} to clear before destroying networking..."
-                sh """
-                  for i in \$(seq 1 30); do
-                    COUNT=\$(aws ec2 describe-network-interfaces \
-                      --filters Name=vpc-id,Values=${vpcId} \
-                      --query "length(NetworkInterfaces[?Association.PublicIp!=null])" \
-                      --output text)
-                    echo "Attempt \$i: \$COUNT ENI(s) in ${vpcId} still have a mapped public IP"
-                    if [ "\$COUNT" = "0" ]; then
-                      echo "All clear — no mapped public IPs remain."
-                      break
-                    fi
-                    sleep 10
-                  done
-                """
+                // '|| true' so a hard failure here (e.g. state already fully
+                // destroyed) doesn't throw — it just yields an empty string,
+                // handled explicitly below instead of being interpolated
+                // blank into the AWS CLI call further down.
+                def vpcId = sh(script: "terraform output -raw vpc_id 2>/dev/null || true", returnStdout: true).trim()
+                if (vpcId == "" || vpcId == "null") {
+                  echo "No VPC found in Layer 1 state (already destroyed, e.g. by a prior run) — skipping ENI wait."
+                } else {
+                  echo "Waiting for all public-IP-mapped ENIs in ${vpcId} to clear before destroying networking..."
+                  sh """
+                    for i in \$(seq 1 30); do
+                      COUNT=\$(aws ec2 describe-network-interfaces \
+                        --filters Name=vpc-id,Values=${vpcId} \
+                        --query "length(NetworkInterfaces[?Association.PublicIp!=null])" \
+                        --output text)
+                      echo "Attempt \$i: \$COUNT ENI(s) in ${vpcId} still have a mapped public IP"
+                      if [ "\$COUNT" = "0" ]; then
+                        echo "All clear — no mapped public IPs remain."
+                        break
+                      fi
+                      sleep 10
+                    done
+                  """
+                }
               }
             }
 
