@@ -140,12 +140,14 @@ pipeline {
             dir("${BASE_DIR}/01-infra") {
               script {
                 // '|| true' so a hard failure here (e.g. state already fully
-                // destroyed) doesn't throw — it just yields an empty string,
-                // handled explicitly below instead of being interpolated
-                // blank into the AWS CLI call further down.
-                def vpcId = sh(script: "terraform output -raw vpc_id 2>/dev/null || true", returnStdout: true).trim()
-                if (vpcId == "" || vpcId == "null") {
-                  echo "No VPC found in Layer 1 state (already destroyed, e.g. by a prior run) — skipping ENI wait."
+                // destroyed) doesn't throw. Terraform prints its "state file
+                // has no outputs defined" message to STDOUT (not stderr), so
+                // redirecting stderr away isn't enough to keep it out of this
+                // variable — instead of trusting it's empty, validate it
+                // actually looks like a VPC ID before ever using it below.
+                def vpcId = sh(script: "terraform output -raw vpc_id 2>&1 || true", returnStdout: true).trim()
+                if (!(vpcId ==~ /^vpc-[0-9a-fA-F]+$/)) {
+                  echo "No valid VPC ID in Layer 1 state (got: '${vpcId}') — assuming it's already destroyed; skipping ENI wait."
                 } else {
                   echo "Waiting for all public-IP-mapped ENIs in ${vpcId} to clear before destroying networking..."
                   sh """
