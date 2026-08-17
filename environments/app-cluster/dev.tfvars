@@ -17,5 +17,10 @@ eks_public_access_cidrs    = []
 enable_argocd_loadbalancer = false
 argocd_allowed_cidrs       = []
 
+# Deploy only dev's own app set (+ shared platform components) into this
+# cluster — NOT bootstrap/projects, which would also deploy staging's and
+# prod's full app sets into this same cluster.
+argocd_gitops_repo_path = "bootstrap/envs/dev"
+
 # EKS Access Configuration
 eks_admin_users = ["arn:aws:iam::602367507570:user/terraform"]

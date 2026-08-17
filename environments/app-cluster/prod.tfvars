@@ -29,4 +29,4 @@ argocd_allowed_cidrs       = []
 
 argocd_gitops_repo_url      = "https://github.com/kumarisback/gitops.git"
 argocd_gitops_repo_revision = "HEAD"
-argocd_gitops_repo_path     = "bootstrap/projects"
+argocd_gitops_repo_path     = "bootstrap/envs/prod"
