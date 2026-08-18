@@ -89,6 +89,24 @@ pipeline {
           if (params.ACTION == 'apply') {
             // Step 1: Apply Layer 1 (Infrastructure)
             dir("${BASE_DIR}/01-infra") {
+              // TEMPORARY — one-time cleanup. The private route table's
+              // 0.0.0.0/0 route was originally created via aws_route_table's
+              // own inline `route` block, before commit d120388 migrated it
+              // to a standalone aws_route resource. Removing that inline
+              // block stops Terraform from managing the route but does NOT
+              // delete it — it's left orphaned but still present in AWS. The
+              // new aws_route.private_nat resource then tries to CREATE a
+              // route for that same destination and AWS rejects it as a
+              // duplicate. Deleting the orphan here lets the new standalone
+              // resource create it fresh. Remove this block after it runs
+              // once successfully — do not leave it in permanently.
+              echo "One-time: clearing orphaned 0.0.0.0/0 route before Layer 1 apply..."
+              sh """
+                RTB_ID=\$(aws ec2 describe-route-tables --filters "Name=tag:Name,Values=microservices-${params.ENVIRONMENT}-private-rt-0" --query 'RouteTables[0].RouteTableId' --output text --region ${AWS_REGION})
+                echo "Route table: \$RTB_ID"
+                aws ec2 delete-route --route-table-id "\$RTB_ID" --destination-cidr-block 0.0.0.0/0 --region ${AWS_REGION} || true
+              """
+
               echo "Applying Layer 1: Infrastructure..."
               sh "terraform apply -auto-approve infra.tfplan"
 
