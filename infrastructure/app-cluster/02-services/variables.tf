@@ -200,6 +200,21 @@ variable "eks_admin_users" {
   default     = []
 }
 
+# Unused in this layer — declared only because dev.tfvars/staging.tfvars/
+# prod.tfvars are passed to both 01-infra and 02-services applies, and
+# Terraform errors on any -var-file key a root module doesn't declare.
+variable "eks_viewer_users" {
+  description = "List of IAM User ARNs to grant read-only (AmazonEKSViewPolicy) access to EKS"
+  type        = list(string)
+  default     = []
+}
+
+variable "eks_group_mapped_users" {
+  description = "Map of IAM principal ARN -> list of Kubernetes RBAC group names to bind via EKS access entries"
+  type        = map(list(string))
+  default     = {}
+}
+
 variable "s3_bucket" {
   description = "S3 bucket for remote state"
   type        = string
