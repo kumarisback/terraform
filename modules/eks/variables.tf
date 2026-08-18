@@ -87,6 +87,14 @@ variable "group_mapped_users" {
   description = "Map of IAM principal ARN -> list of Kubernetes RBAC group names to attach via the access entry's kubernetes_groups, e.g. { \"arn:aws:iam::123:user/jane\" = [\"sre\"] }. Authorization is fully delegated to in-cluster RBAC (ClusterRoleBindings binding those group names) rather than an AWS-managed access policy."
   type        = map(list(string))
   default     = {}
+
+  validation {
+    condition = alltrue([
+      for groups in values(var.group_mapped_users) :
+      alltrue([for g in groups : !startswith(g, "system:")])
+    ])
+    error_message = "kubernetes_groups must not include built-in 'system:' groups (e.g. system:masters, system:cluster-admins) — those bypass Kubernetes RBAC entirely and grant unconditional cluster-admin access, defeating the point of this custom-RBAC tier."
+  }
 }
 
 variable "node_capacity_type" {
