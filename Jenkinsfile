@@ -133,12 +133,20 @@ pipeline {
                 aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region ${AWS_REGION}
                 export KUBECONFIG=~/.kube/config
 
-                # TEMPORARY — one-time cleanup of a Helm release orphaned by an
-                # earlier apply that died mid-install during the connectivity
-                # issue (cluster-unreachable timeouts, now fixed). Terraform's
-                # state has no record of it, so a fresh `helm install` collides
-                # with this leftover release object. Remove this block after
-                # it runs once successfully — do not leave it in permanently.
+                # TEMPORARY — one-time cleanup of Helm releases orphaned by
+                # earlier applies that died mid-install during the
+                # connectivity issue (cluster-unreachable timeouts, now
+                # fixed). Terraform's state has no record of either, so a
+                # fresh `helm install` collides with the leftover release
+                # object. Scoped to only these two, since they're the ones
+                # that actually failed — argocd/argocd-root-app haven't been
+                # reported broken, and deleting a HEALTHY release's Helm
+                # record (unlike a failed one) would strand its live
+                # resources unmanaged and likely cause "already exists"
+                # conflicts on the next install, which is worse than this.
+                # Remove this block after a run completes successfully — do
+                # not leave it in permanently.
+                kubectl delete secret -n kube-system -l "owner=helm,name=external-secrets" --ignore-not-found=true || true
                 kubectl delete secret -n kube-system -l "owner=helm,name=aws-load-balancer-controller" --ignore-not-found=true || true
 
                 terraform apply -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars
