@@ -89,35 +89,42 @@ pipeline {
           if (params.ACTION == 'apply') {
             // Step 1: Apply Layer 1 (Infrastructure)
             dir("${BASE_DIR}/01-infra") {
-              // TEMPORARY — one-time cleanup. The private route table's
-              // 0.0.0.0/0 route was originally created via aws_route_table's
-              // own inline `route` block, before commit d120388 migrated it
-              // to a standalone aws_route resource. Removing that inline
-              // block stops Terraform from managing the route but does NOT
-              // delete it — it's left orphaned but still present in AWS. The
-              // new aws_route.private_nat resource then tries to CREATE a
-              // route for that same destination and AWS rejects it as a
-              // duplicate. Deleting the orphan here lets the new standalone
-              // resource create it fresh. Remove this block after it runs
-              // once successfully — do not leave it in permanently.
-              echo "One-time: clearing orphaned 0.0.0.0/0 route before Layer 1 apply..."
-              sh """
-                RTB_ID=\$(aws ec2 describe-route-tables --filters "Name=tag:Name,Values=microservices-${params.ENVIRONMENT}-private-rt-0" --query 'RouteTables[0].RouteTableId' --output text --region ${AWS_REGION})
-                echo "Route table: \$RTB_ID"
-                aws ec2 delete-route --route-table-id "\$RTB_ID" --destination-cidr-block 0.0.0.0/0 --region ${AWS_REGION} || true
-              """
+              /* ONE-TIME FIX, ALREADY APPLIED — kept commented out for
+               * reference, not deleted, in case a similar migration ever
+               * needs the same pattern again.
+               *
+               * The private route table's 0.0.0.0/0 route was originally
+               * created via aws_route_table's own inline `route` block,
+               * before commit d120388 migrated it to a standalone aws_route
+               * resource. Removing that inline block stops Terraform from
+               * managing the route but does NOT delete it — it's left
+               * orphaned but still present in AWS. The new
+               * aws_route.private_nat resource then tried to CREATE a route
+               * for that same destination and AWS rejected it as a
+               * duplicate. Deleting the orphan here let the new standalone
+               * resource create it fresh.
+               *
+               * echo "One-time: clearing orphaned 0.0.0.0/0 route before Layer 1 apply..."
+               * sh """
+               *   RTB_ID=\$(aws ec2 describe-route-tables --filters "Name=tag:Name,Values=microservices-${params.ENVIRONMENT}-private-rt-0" --query 'RouteTables[0].RouteTableId' --output text --region ${AWS_REGION})
+               *   echo "Route table: \$RTB_ID"
+               *   aws ec2 delete-route --route-table-id "\$RTB_ID" --destination-cidr-block 0.0.0.0/0 --region ${AWS_REGION} || true
+               * """
+               */
 
               echo "Applying Layer 1: Infrastructure..."
               sh "terraform apply -auto-approve infra.tfplan"
 
-              // TEMPORARY — one-time fix for a route left over from before
-              // modules/networking stopped mixing inline + standalone
-              // aws_route on the private route table (see commit d120388).
-              // -replace can't be passed to a saved plan file, hence the
-              // separate live apply here. Remove this block after it runs
-              // once successfully — do not leave it in permanently.
-              echo "One-time: forcing recreation of aws_route.to_shared_services[0]..."
-              sh "terraform apply -auto-approve -replace='aws_route.to_shared_services[0]' -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars"
+              /* ONE-TIME FIX, ALREADY APPLIED — kept commented out for
+               * reference. Forced recreation of a route left over from
+               * before modules/networking stopped mixing inline + standalone
+               * aws_route on the private route table (see commit d120388).
+               * -replace can't be passed to a saved plan file, hence the
+               * separate live apply below.
+               *
+               * echo "One-time: forcing recreation of aws_route.to_shared_services[0]..."
+               * sh "terraform apply -auto-approve -replace='aws_route.to_shared_services[0]' -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars"
+               */
             }
 
             // Step 2: Init & Apply Layer 2 (Services)
@@ -133,19 +140,19 @@ pipeline {
                 aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region ${AWS_REGION}
                 export KUBECONFIG=~/.kube/config
 
-                # TEMPORARY — one-time cleanup of Helm releases orphaned by
-                # earlier applies that died mid-install during the
+                # ONE-TIME CLEANUP, ALREADY APPLIED — kept commented out for
+                # reference, not deleted. These Helm releases were orphaned
+                # by earlier applies that died mid-install during the
                 # connectivity issue (cluster-unreachable timeouts, now
                 # fixed — see the cleanup_on_fail additions in 02-services/
                 # main.tf, which stop this from recurring going forward).
-                # Terraform's state has no record of any of these, so a
-                # fresh `helm install` collides with the leftover release
-                # object. Remove this block after a run completes
-                # successfully — do not leave it in permanently.
-                kubectl delete secret -n kube-system -l "owner=helm,name=external-secrets" --ignore-not-found=true || true
-                kubectl delete secret -n kube-system -l "owner=helm,name=aws-load-balancer-controller" --ignore-not-found=true || true
-                kubectl delete secret -n argocd -l "owner=helm,name=argocd" --ignore-not-found=true || true
-                kubectl delete secret -n argocd -l "owner=helm,name=argocd-root-app" --ignore-not-found=true || true
+                # Terraform's state had no record of any of these, so a
+                # fresh `helm install` collided with the leftover release
+                # object each time.
+                # kubectl delete secret -n kube-system -l "owner=helm,name=external-secrets" --ignore-not-found=true || true
+                # kubectl delete secret -n kube-system -l "owner=helm,name=aws-load-balancer-controller" --ignore-not-found=true || true
+                # kubectl delete secret -n argocd -l "owner=helm,name=argocd" --ignore-not-found=true || true
+                # kubectl delete secret -n argocd -l "owner=helm,name=argocd-root-app" --ignore-not-found=true || true
 
                 terraform apply -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars
               """
