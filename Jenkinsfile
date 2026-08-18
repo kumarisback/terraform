@@ -91,6 +91,15 @@ pipeline {
             dir("${BASE_DIR}/01-infra") {
               echo "Applying Layer 1: Infrastructure..."
               sh "terraform apply -auto-approve infra.tfplan"
+
+              // TEMPORARY — one-time fix for a route left over from before
+              // modules/networking stopped mixing inline + standalone
+              // aws_route on the private route table (see commit d120388).
+              // -replace can't be passed to a saved plan file, hence the
+              // separate live apply here. Remove this block after it runs
+              // once successfully — do not leave it in permanently.
+              echo "One-time: forcing recreation of aws_route.to_shared_services[0]..."
+              sh "terraform apply -auto-approve -replace='aws_route.to_shared_services[0]' -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars"
             }
 
             // Step 2: Init & Apply Layer 2 (Services)
@@ -105,6 +114,15 @@ pipeline {
               sh """
                 aws eks update-kubeconfig --name microservices-${params.ENVIRONMENT}-eks-cluster --region ${AWS_REGION}
                 export KUBECONFIG=~/.kube/config
+
+                # TEMPORARY — one-time cleanup of a Helm release orphaned by an
+                # earlier apply that died mid-install during the connectivity
+                # issue (cluster-unreachable timeouts, now fixed). Terraform's
+                # state has no record of it, so a fresh `helm install` collides
+                # with this leftover release object. Remove this block after
+                # it runs once successfully — do not leave it in permanently.
+                kubectl delete secret -n kube-system -l "owner=helm,name=aws-load-balancer-controller" --ignore-not-found=true || true
+
                 terraform apply -auto-approve -var-file=${ENV_DIR}/${params.ENVIRONMENT}.tfvars
               """
             }
