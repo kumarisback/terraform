@@ -29,6 +29,17 @@ resource "helm_release" "argocd" {
       crds = {
         install = true
       }
+      # bootstrap/envs/<env>/kustomization.yaml references the shared
+      # bootstrap/projects/*.yaml files via "../../projects/..." so every
+      # environment can reuse the same Application manifests. Kustomize's
+      # default load restrictor treats each app's own `path` as a security
+      # boundary and refuses to load anything above it, even within the same
+      # repo — this relaxes that so the shared-file pattern works.
+      configs = {
+        cm = {
+          "kustomize.buildOptions" = "--load-restrictor LoadRestrictionsNone"
+        }
+      }
     })
   ]
 }
