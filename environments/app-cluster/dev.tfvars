@@ -24,3 +24,17 @@ argocd_gitops_repo_path = "bootstrap/envs/dev"
 
 # EKS Access Configuration
 eks_admin_users = ["arn:aws:iam::602367507570:user/terraform"]
+
+# Read-only tier (AmazonEKSViewPolicy) — add IAM user/role ARNs here instead
+# of eks_admin_users once you have a second identity that only needs to look
+# around, e.g.:
+# eks_viewer_users = ["arn:aws:iam::602367507570:user/some-teammate"]
+eks_viewer_users = []
+
+# Custom RBAC-group tier — bypasses AWS-managed policies entirely; access is
+# governed purely by the ClusterRole/ClusterRoleBinding or RoleBinding in
+# gitops/platform/rbac/ that reference these group names, e.g.:
+# eks_group_mapped_users = {
+#   "arn:aws:iam::602367507570:user/some-teammate" = ["sre"]
+# }
+eks_group_mapped_users = {}

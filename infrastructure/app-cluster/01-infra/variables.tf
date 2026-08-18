@@ -206,6 +206,18 @@ variable "eks_admin_users" {
   default     = []
 }
 
+variable "eks_viewer_users" {
+  description = "List of IAM User ARNs to grant read-only (AmazonEKSViewPolicy) access to EKS"
+  type        = list(string)
+  default     = []
+}
+
+variable "eks_group_mapped_users" {
+  description = "Map of IAM principal ARN -> list of Kubernetes RBAC group names (e.g. \"sre\", \"developer-readonly\") to bind via EKS access entries, authorized purely through in-cluster RBAC instead of an AWS-managed access policy"
+  type        = map(list(string))
+  default     = {}
+}
+
 variable "peer_with_shared_services" {
   description = "Whether to create a VPC peering connection to the shared-services VPC (where Jenkins runs), so Jenkins can reach this cluster's EKS API endpoint even when it's private-only. Requires shared-services to have been applied first."
   type        = bool
