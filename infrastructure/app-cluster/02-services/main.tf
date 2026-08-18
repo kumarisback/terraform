@@ -29,17 +29,6 @@ resource "helm_release" "argocd" {
       crds = {
         install = true
       }
-      # bootstrap/envs/<env>/kustomization.yaml references the shared
-      # bootstrap/projects/*.yaml files via "../../projects/..." so every
-      # environment can reuse the same Application manifests. Kustomize's
-      # default load restrictor treats each app's own `path` as a security
-      # boundary and refuses to load anything above it, even within the same
-      # repo — this relaxes that so the shared-file pattern works.
-      configs = {
-        cm = {
-          "kustomize.buildOptions" = "--load-restrictor LoadRestrictionsNone"
-        }
-      }
     })
   ]
 }
@@ -116,6 +105,15 @@ resource "helm_release" "argocd_root_app" {
             repoURL        = tostring(var.argocd_gitops_repo_url)
             targetRevision = tostring(var.argocd_gitops_repo_revision)
             path           = tostring(var.argocd_gitops_repo_path)
+            # bootstrap/envs/<env>/kustomization.yaml deliberately reaches
+            # above its own path via "../../projects/*.yaml" to share
+            # Application manifests across environments. Kustomize's default
+            # load restrictor treats this Application's `path` as a hard
+            # boundary and refuses that — scoped here to only this
+            # Application instead of relaxing it argocd-wide.
+            kustomize = {
+              buildOptions = "--load-restrictor LoadRestrictionsNone"
+            }
           }
           destination = {
             server    = "https://kubernetes.default.svc"
