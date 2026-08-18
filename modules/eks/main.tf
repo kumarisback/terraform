@@ -244,6 +244,42 @@ resource "aws_eks_access_policy_association" "admins" {
   }
 }
 
+# Read-only tier: same "front door" as admins, but capped to AmazonEKSViewPolicy
+# instead of ClusterAdminPolicy. This is the non-admin path that didn't exist
+# before — previously the only options were full cluster-admin or no access at all.
+resource "aws_eks_access_entry" "viewers" {
+  for_each      = toset(var.viewer_users)
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "viewers" {
+  for_each      = toset(var.viewer_users)
+  cluster_name  = aws_eks_cluster.this.name
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
+  principal_arn = each.value
+
+  access_scope {
+    type = "cluster"
+  }
+}
+
+# Custom tier: no AWS-managed policy at all. kubernetes_groups here is what
+# makes the IAM principal's requests carry that group name to the API
+# server's RBAC layer — it's the missing link that makes the ClusterRoleBindings
+# in gitops/platform/rbac/ (subjects: kind: Group, name: "sre" / "developer-readonly")
+# actually apply to someone. No aws_eks_access_policy_association is needed
+# here because authorization is fully delegated to in-cluster RBAC instead of
+# an AWS-managed access policy.
+resource "aws_eks_access_entry" "group_mapped" {
+  for_each          = var.group_mapped_users
+  cluster_name      = aws_eks_cluster.this.name
+  principal_arn     = each.key
+  type              = "STANDARD"
+  kubernetes_groups = each.value
+}
+
 # ---------------------------------------------------------
 # IRSA (IAM Roles for Service Accounts)
 #

@@ -77,6 +77,18 @@ variable "admin_users" {
   default     = []
 }
 
+variable "viewer_users" {
+  description = "IAM User ARNs to grant read-only (AmazonEKSViewPolicy) access to the EKS cluster, instead of full cluster-admin"
+  type        = list(string)
+  default     = []
+}
+
+variable "group_mapped_users" {
+  description = "Map of IAM principal ARN -> list of Kubernetes RBAC group names to attach via the access entry's kubernetes_groups, e.g. { \"arn:aws:iam::123:user/jane\" = [\"sre\"] }. Authorization is fully delegated to in-cluster RBAC (ClusterRoleBindings binding those group names) rather than an AWS-managed access policy."
+  type        = map(list(string))
+  default     = {}
+}
+
 variable "node_capacity_type" {
   description = "Capacity type for the node group: ON_DEMAND or SPOT"
   type        = string

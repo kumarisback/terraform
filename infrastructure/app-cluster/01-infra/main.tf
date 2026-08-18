@@ -121,6 +121,8 @@ module "eks" {
   node_max_capacity      = var.node_max_capacity
   node_instance_type     = var.node_instance_type
   admin_users            = var.eks_admin_users
+  viewer_users           = var.eks_viewer_users
+  group_mapped_users     = var.eks_group_mapped_users
   private_access_cidrs   = var.peer_with_shared_services ? data.terraform_remote_state.shared_services[*].outputs.vpc_cidr_block : []
 
   irsa_roles = {
