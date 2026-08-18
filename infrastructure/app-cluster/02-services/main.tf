@@ -30,6 +30,22 @@ resource "helm_release" "argocd" {
       crds = {
         install = true
       }
+      # bootstrap/envs/<env>/kustomization.yaml references shared
+      # bootstrap/projects/*.yaml files via "../../projects/...", and
+      # apps/<env>/kustomization.yaml references "../base" — both climb
+      # above their own Application's `path`, which kustomize's default
+      # load restrictor blocks. There is no working per-Application
+      # override for this (ApplicationSource.Kustomize has no
+      # `buildOptions` field — an earlier attempt to set
+      # spec.source.kustomize.buildOptions per-Application was silently
+      # dropped by the API server as an unrecognized field and never took
+      # effect). This is the only real mechanism, and it applies
+      # argocd-wide.
+      configs = {
+        cm = {
+          "kustomize.buildOptions" = "--load-restrictor LoadRestrictionsNone"
+        }
+      }
     })
   ]
 }
@@ -108,15 +124,6 @@ resource "helm_release" "argocd_root_app" {
             repoURL        = tostring(var.argocd_gitops_repo_url)
             targetRevision = tostring(var.argocd_gitops_repo_revision)
             path           = tostring(var.argocd_gitops_repo_path)
-            # bootstrap/envs/<env>/kustomization.yaml deliberately reaches
-            # above its own path via "../../projects/*.yaml" to share
-            # Application manifests across environments. Kustomize's default
-            # load restrictor treats this Application's `path` as a hard
-            # boundary and refuses that — scoped here to only this
-            # Application instead of relaxing it argocd-wide.
-            kustomize = {
-              buildOptions = "--load-restrictor LoadRestrictionsNone"
-            }
           }
           destination = {
             server    = "https://kubernetes.default.svc"
