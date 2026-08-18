@@ -8,6 +8,7 @@ resource "helm_release" "argocd" {
   version          = "7.7.15"
   namespace        = "argocd"
   create_namespace = true
+  cleanup_on_fail  = true
 
   set = concat(
     [
@@ -43,6 +44,7 @@ resource "helm_release" "external_secrets" {
   version          = "0.10.4"
   namespace        = "kube-system"
   create_namespace = false
+  cleanup_on_fail  = true
 
   values = [
     yamlencode({
@@ -88,11 +90,12 @@ resource "helm_release" "aws_lb_controller" {
 resource "helm_release" "argocd_root_app" {
   depends_on = [helm_release.argocd, helm_release.external_secrets]
 
-  name       = "argocd-root-app"
-  repository = "https://argoproj.github.io/argo-helm"
-  chart      = "argocd-apps"
-  version    = "2.0.2"
-  namespace  = "argocd"
+  name            = "argocd-root-app"
+  repository      = "https://argoproj.github.io/argo-helm"
+  chart           = "argocd-apps"
+  version         = "2.0.2"
+  namespace       = "argocd"
+  cleanup_on_fail = true
 
   values = [
     yamlencode({
