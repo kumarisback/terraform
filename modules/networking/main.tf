@@ -116,17 +116,25 @@ resource "aws_route_table" "private" {
   count  = local.multi_nat ? length(var.public_subnet_cidrs) : 1
   vpc_id = aws_vpc.main.id
 
-  dynamic "route" {
-    for_each = var.enable_nat_gateway ? [1] : []
-    content {
-      cidr_block     = "0.0.0.0/0"
-      nat_gateway_id = local.multi_nat ? aws_nat_gateway.this[count.index].id : aws_nat_gateway.this[0].id
-    }
-  }
-
   tags = merge(local.common_tags, {
     Name = "${var.name}-${var.environment}-private-rt-${count.index}"
   })
+}
+
+# Standalone resource instead of an inline `route` block on aws_route_table.
+# 01-infra attaches extra routes (VPC peering to shared-services) to this
+# same table via their own standalone aws_route resources. An inline route
+# block treats itself as the complete, authoritative route set for the
+# table — any route added externally is invisible to it, and the next
+# refresh reconciles it away as drift. That happens silently (the externally
+# added aws_route resource's own state is untouched, so `plan` shows no
+# changes for it) and only on the SECOND apply onward, since the first
+# apply creates everything before any refresh notices the "extra" route.
+resource "aws_route" "private_nat" {
+  count                  = var.enable_nat_gateway ? length(aws_route_table.private) : 0
+  route_table_id         = aws_route_table.private[count.index].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = local.multi_nat ? aws_nat_gateway.this[count.index].id : aws_nat_gateway.this[0].id
 }
 
 resource "aws_route_table_association" "private_app" {
