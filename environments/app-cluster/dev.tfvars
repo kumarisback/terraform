@@ -37,4 +37,6 @@ eks_viewer_users = []
 # eks_group_mapped_users = {
 #   "arn:aws:iam::602367507570:user/some-teammate" = ["sre"]
 # }
-eks_group_mapped_users = {}
+eks_group_mapped_users = {
+  "arn:aws:iam::602367507570:user/SRE_TEST" = ["sre"]
+}
