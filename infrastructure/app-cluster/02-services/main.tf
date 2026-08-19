@@ -1,7 +1,39 @@
+# IRSA-linked ServiceAccounts for controllers that used to be installed here
+# via helm_release (aws-load-balancer-controller, external-secrets). Both
+# are now ArgoCD-managed Applications instead (see gitops/bootstrap/projects/
+# aws-lb-controller-dev.yaml and external-secrets-operator-dev.yaml) — using
+# Terraform's helm_release for platform add-ons repeatedly hit "cannot reuse
+# a name that is still in use" whenever an apply was interrupted, because
+# Terraform's state and Helm's own release bookkeeping are two separate
+# sources of truth that can drift. ArgoCD's reconciliation loop is
+# idempotent and self-healing by design, which this class of failure isn't
+# a problem for. Terraform still owns the IAM/IRSA wiring (that's genuinely
+# infrastructure); the ServiceAccount is the minimal Kubernetes-side object
+# needed to link a namespace/name to that IAM role, created here so the
+# Helm charts installed via ArgoCD can reference it with
+# serviceAccount.create=false instead of creating their own.
+resource "kubernetes_service_account_v1" "aws_lb_controller" {
+  metadata {
+    name      = "aws-load-balancer-controller"
+    namespace = "kube-system"
+    annotations = {
+      "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["aws_lb_controller"]
+    }
+  }
+}
+
+resource "kubernetes_service_account_v1" "external_secrets" {
+  metadata {
+    name      = "external-secrets-sa"
+    namespace = "kube-system"
+    annotations = {
+      "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["external_secrets"]
+    }
+  }
+}
+
 # 1. Install core ArgoCD (Services & CRDs)
 resource "helm_release" "argocd" {
-  depends_on = [helm_release.aws_lb_controller] # Added wait for ALB controller webhook
-
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
@@ -50,61 +82,13 @@ resource "helm_release" "argocd" {
   ]
 }
 
-# 2. External Secrets Operator
-resource "helm_release" "external_secrets" {
-  depends_on = [helm_release.aws_lb_controller] # Added wait for ALB controller webhook
-
-  name             = "external-secrets"
-  repository       = "https://charts.external-secrets.io"
-  chart            = "external-secrets"
-  version          = "0.10.4"
-  namespace        = "kube-system"
-  create_namespace = false
-  cleanup_on_fail  = true
-
-  values = [
-    yamlencode({
-      installCRDs = true
-      serviceAccount = {
-        create = true
-        name   = "external-secrets-sa"
-        annotations = {
-          "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["external_secrets"]
-        }
-      }
-    })
-  ]
-}
-
-# 3. AWS Load Balancer Controller
-resource "helm_release" "aws_lb_controller" {
-  name             = "aws-load-balancer-controller"
-  repository       = "https://aws.github.io/eks-charts"
-  chart            = "aws-load-balancer-controller"
-  version          = "1.8.1"
-  namespace        = "kube-system"
-  create_namespace = false
-  cleanup_on_fail  = true # Add this line
-
-  values = [
-    yamlencode({
-      clusterName = data.terraform_remote_state.infra.outputs.cluster_name
-      region      = var.aws_region
-      vpcId       = data.terraform_remote_state.infra.outputs.vpc_id
-      serviceAccount = {
-        create = true
-        name   = "aws-load-balancer-controller"
-        annotations = {
-          "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["aws_lb_controller"]
-        }
-      }
-    })
-  ]
-}
-
-# 4. Bootstrap Root Application (App-of-Apps)
+# 2. Bootstrap Root Application (App-of-Apps) — everything else (ArgoCD
+# itself excepted, since it's what makes GitOps possible at all) flows
+# through this: aws-load-balancer-controller and external-secrets are
+# ArgoCD Applications under gitops/bootstrap/projects/, not Terraform
+# resources.
 resource "helm_release" "argocd_root_app" {
-  depends_on = [helm_release.argocd, helm_release.external_secrets]
+  depends_on = [helm_release.argocd]
 
   name            = "argocd-root-app"
   repository      = "https://argoproj.github.io/argo-helm"

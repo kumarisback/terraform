@@ -141,16 +141,19 @@ pipeline {
                 export KUBECONFIG=~/.kube/config
 
                 # ONE-TIME CLEANUP, ALREADY APPLIED — kept commented out for
-                # reference, not deleted. These Helm releases were orphaned
+                # reference, not deleted. These two releases were orphaned
                 # by earlier applies that died mid-install during the
                 # connectivity issue (cluster-unreachable timeouts, now
                 # fixed — see the cleanup_on_fail additions in 02-services/
                 # main.tf, which stop this from recurring going forward).
-                # Terraform's state had no record of any of these, so a
-                # fresh `helm install` collided with the leftover release
-                # object each time.
-                # kubectl delete secret -n kube-system -l "owner=helm,name=external-secrets" --ignore-not-found=true || true
-                # kubectl delete secret -n kube-system -l "owner=helm,name=aws-load-balancer-controller" --ignore-not-found=true || true
+                # Terraform's state had no record of either, so a fresh
+                # `helm install` collided with the leftover release object
+                # each time. aws-load-balancer-controller and
+                # external-secrets are no longer Terraform-managed at all
+                # (moved to ArgoCD Applications — see gitops/bootstrap/
+                # projects/), so this specific class of failure can no
+                # longer happen for those two; only argocd/argocd-root-app
+                # remain as helm_release resources here.
                 # kubectl delete secret -n argocd -l "owner=helm,name=argocd" --ignore-not-found=true || true
                 # kubectl delete secret -n argocd -l "owner=helm,name=argocd-root-app" --ignore-not-found=true || true
 
