@@ -70,7 +70,7 @@ Let's say you want to deploy the `dev` environment.
 
 1. Open `environments/app-cluster/dev.tfvars`. This file controls the shape of your infrastructure (e.g., how many nodes, VPC size, etc.).
 2. Update any variables if needed. By default, it is configured for a standard microservices deployment.
-3. This repo's Terraform is split into two layers per environment — `01-infra` (VPC/EKS/DB) and `02-services` (ArgoCD/platform add-ons) — each with its own state file and its own backend config:
+3. This repo's Terraform is split into two layers per environment — `01-infra` (VPC/EKS/DB) and `02-services` (bootstraps ArgoCD — everything after that, including platform add-ons like External Secrets Operator and the AWS Load Balancer Controller, is managed by ArgoCD itself via GitOps, not by Terraform) — each with its own state file and its own backend config:
    - `environments/app-cluster/dev-infra-backend.hcl` — Layer 1's state
    - `environments/app-cluster/dev-services-backend.hcl` — Layer 2's state
 
@@ -94,7 +94,8 @@ terraform apply tfplan
 ```
 *(This step can take 15-20 minutes as it provisions the EKS cluster and databases.)*
 
-**Layer 2 — Services (ArgoCD, External Secrets, AWS Load Balancer Controller):**
+**Layer 2 — Services (bootstraps ArgoCD, plus the IRSA-linked ServiceAccounts
+platform add-ons need):**
 ```bash
 cd ../02-services
 
@@ -105,6 +106,11 @@ terraform init -backend-config=../../../environments/app-cluster/dev-services-ba
 terraform plan -var-file=../../../environments/app-cluster/dev.tfvars -out=tfplan
 terraform apply tfplan
 ```
+This layer installs ArgoCD and one root Application — nothing else. External
+Secrets Operator and the AWS Load Balancer Controller are **not** installed
+here; they're ArgoCD Applications in the gitops repo
+(`gitops/bootstrap/projects/`), so ArgoCD installs and manages them once it's
+up (see [Step 3](#step-3-what-just-happened)).
 
 For `staging`/`prod`, swap `dev` for the environment name in every path/flag above.
 
@@ -116,11 +122,29 @@ When both layers finish successfully:
 1. Your AWS EKS Cluster is up and running.
 2. Your AWS RDS Database (if enabled) is created.
 3. The database connection details are securely saved into **AWS Systems Manager (SSM)**.
-4. **ArgoCD is automatically installed** via Helm.
-5. Terraform creates an ArgoCD root Application that points at the GitOps repository: `https://github.com/kumarisback/gitops.git`.
-6. ArgoCD automatically syncs that GitOps repo and deploys the applications in `bootstrap/projects`.
+4. Terraform creates an IRSA-linked IAM role + Kubernetes ServiceAccount for
+   each platform controller (External Secrets Operator, AWS Load Balancer
+   Controller) — the minimal Kubernetes-side object needed to link that
+   ServiceAccount to its IAM role. It does **not** install the controllers
+   themselves.
+5. **ArgoCD is automatically installed** via Helm.
+6. Terraform creates an ArgoCD root Application that points at the GitOps repository: `https://github.com/kumarisback/gitops.git`.
+7. ArgoCD automatically syncs that GitOps repo and deploys everything in
+   `bootstrap/projects` — including External Secrets Operator and the AWS
+   Load Balancer Controller (as ArgoCD Applications, referencing the
+   ServiceAccounts from step 4 via `serviceAccount.create: false`), and then
+   your application workloads.
 
 You do NOT need to run any `kubectl` commands to deploy your apps. Jump over to the **GitOps Repository README** to see how to deploy and update your services.
+
+**Why the platform add-ons aren't installed by Terraform**: they used to be, via
+`helm_release` resources. That repeatedly hit "cannot reuse a name that is
+still in use" whenever an apply was interrupted, because Terraform's state
+and Helm's own release bookkeeping are two separate sources of truth that
+can drift apart. ArgoCD's reconciliation loop is idempotent and self-healing
+by design, so it doesn't share that failure mode — Terraform now owns only
+the IAM/IRSA wiring (genuinely infrastructure), and GitOps owns the
+controller lifecycle, same as every other workload in this repo.
 
 **Now — where's everything?** See the [Quick reference table](#quick-reference-urls--publicprivate-access) above, or the detailed walkthrough in [Step 4](#step-4-accessing-jenkins-argocd-and-deployed-services) below.
 
@@ -282,14 +306,20 @@ eks_admin_users = ["arn:aws:iam::<account-id>:user/<name>"]
 ### Give an in-cluster controller its own AWS permissions (IRSA)
 
 Don't widen the node role — give the controller its own scoped IAM role
-instead. Add an entry to the `irsa_roles` map passed to `module "eks"` in
-`infrastructure/app-cluster/01-infra/main.tf` (the `external_secrets` and
+instead. This is a two-part pattern: Terraform owns the IAM role and the
+ServiceAccount that links to it; the controller's actual install (whether
+it's an ArgoCD Application, like every platform add-on in this repo, or
+something you install another way) references that ServiceAccount by name
+instead of creating its own.
+
+**1. IAM role** — add an entry to the `irsa_roles` map passed to `module "eks"`
+in `infrastructure/app-cluster/01-infra/main.tf` (the `external_secrets` and
 `aws_lb_controller` entries already there are examples to copy):
 ```hcl
 irsa_roles = {
   my_controller = {
     namespace       = "kube-system"          # or wherever it runs
-    service_account = "my-controller-sa"     # must match the chart's SA name
+    service_account = "my-controller-sa"     # must match the ServiceAccount name below
     policy_arns     = ["arn:aws:iam::aws:policy/SomeManagedPolicy"] # AWS managed policy, or:
     inline_policy_json = jsonencode({         # a custom, tightly scoped policy
       Version = "2012-10-17"
@@ -298,12 +328,29 @@ irsa_roles = {
   }
 }
 ```
-Re-apply Layer 1, then read the resulting ARN in Layer 2 via
-`data.terraform_remote_state.infra.outputs.irsa_role_arns["my_controller"]`
-and annotate that Helm chart's ServiceAccount with
-`eks.amazonaws.com/role-arn` — exactly as `helm_release.external_secrets`
-and `helm_release.aws_lb_controller` already do in
-`infrastructure/app-cluster/02-services/main.tf`.
+
+**2. ServiceAccount** — add a `kubernetes_service_account_v1` resource in
+`infrastructure/app-cluster/02-services/main.tf` (the `aws_lb_controller` and
+`external_secrets` resources already there are examples to copy):
+```hcl
+resource "kubernetes_service_account_v1" "my_controller" {
+  metadata {
+    name      = "my-controller-sa"
+    namespace = "kube-system"
+    annotations = {
+      "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["my_controller"]
+    }
+  }
+}
+```
+Re-apply Layer 1, then Layer 2.
+
+**3. Point the controller at it** — if it's an ArgoCD-managed Helm chart (the
+standard for platform add-ons here), set `serviceAccount.create: false` and
+`serviceAccount.name: my-controller-sa` in its Application's Helm values —
+see `gitops/bootstrap/projects/aws-lb-controller-dev.yaml` for a working
+example. Terraform creates the ServiceAccount; the chart just uses it,
+instead of creating (and re-creating, on every Helm install) its own.
 
 ### Give Jenkins additional AWS permissions
 
@@ -340,7 +387,7 @@ Two options, both already supported end-to-end by this repo:
   No Terraform change needed.
 - **Host/path-based routing, TLS, or multiple services behind one ALB**: add
   an `Ingress` instead, annotated for the AWS Load Balancer Controller
-  (already installed via Terraform in `02-services`):
+  (already installed via ArgoCD — see `gitops/bootstrap/projects/aws-lb-controller-dev.yaml`):
   ```yaml
   apiVersion: networking.k8s.io/v1
   kind: Ingress
