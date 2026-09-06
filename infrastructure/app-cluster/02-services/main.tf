@@ -32,6 +32,17 @@ resource "kubernetes_service_account_v1" "external_secrets" {
   }
 }
 
+# Create EKS ServiceAccount for Karpenter
+resource "kubernetes_service_account_v1" "karpenter" {
+  metadata {
+    name      = "karpenter"
+    namespace = "kube-system"
+    annotations = {
+      "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["karpenter"]
+    }
+  }
+}
+
 # 1. Install core ArgoCD (Services & CRDs)
 resource "helm_release" "argocd" {
   name             = "argocd"
