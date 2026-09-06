@@ -35,3 +35,8 @@ output "karpenter_interruption_queue_name" {
   description = "Name of SQS Queue for Karpenter Spot Interruption handling"
   value       = aws_sqs_queue.karpenter_interruption.name
 }
+
+output "loki_s3_bucket_id" {
+  description = "The ID of the Loki S3 bucket"
+  value       = aws_s3_bucket.loki_storage.id
+}

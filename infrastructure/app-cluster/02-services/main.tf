@@ -43,6 +43,24 @@ resource "kubernetes_service_account_v1" "karpenter" {
   }
 }
 
+# Namespace for the observability stack
+resource "kubernetes_namespace_v1" "monitoring" {
+  metadata {
+    name = "monitoring"
+  }
+}
+
+# IRSA-linked ServiceAccount for Loki
+resource "kubernetes_service_account_v1" "loki" {
+  metadata {
+    name      = "loki"
+    namespace = kubernetes_namespace_v1.monitoring.metadata[0].name
+    annotations = {
+      "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["loki"]
+    }
+  }
+}
+
 # 1. Install core ArgoCD (Services & CRDs)
 resource "helm_release" "argocd" {
   name             = "argocd"

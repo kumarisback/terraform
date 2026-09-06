@@ -235,3 +235,15 @@ variable "shared_services_state_key" {
   type        = string
   default     = "shared-services/terraform.tfstate"
 }
+
+variable "loki_storage_bucket_prefix" {
+  description = "Prefix for the Loki S3 storage bucket"
+  type        = string
+  default     = "loki-storage"
+}
+
+variable "loki_retention_days" {
+  description = "Number of days to keep logs in S3 before expiration"
+  type        = number
+  default     = 14
+}

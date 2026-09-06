@@ -168,6 +168,54 @@ resource "aws_cloudwatch_event_target" "karpenter_event_targets" {
   arn       = aws_sqs_queue.karpenter_interruption.arn
 }
 
+
+# Secure S3 Bucket for Loki long-term log storage
+resource "aws_s3_bucket" "loki_storage" {
+  bucket        = "${var.project_name}-${var.environment}-${var.loki_storage_bucket_prefix}-${data.aws_caller_identity.current.account_id}"
+  force_destroy = var.environment == "dev" ? true : false
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-${var.environment}-loki-storage"
+  })
+}
+
+# Block public access to the log bucket
+resource "aws_s3_bucket_public_access_block" "loki_storage" {
+  bucket                  = aws_s3_bucket.loki_storage.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable encryption at rest
+resource "aws_s3_bucket_server_side_encryption_configuration" "loki_storage" {
+  bucket = aws_s3_bucket.loki_storage.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# Configure automatic log expiration to control AWS storage costs
+resource "aws_s3_bucket_lifecycle_configuration" "loki_storage" {
+  bucket = aws_s3_bucket.loki_storage.id
+
+  rule {
+    id     = "log-expiration"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = var.loki_retention_days
+    }
+  }
+}
+
+
 module "networking" {
   source = "../../../modules/networking"
 
@@ -267,6 +315,30 @@ module "eks" {
             Effect   = "Allow"
             Action   = "iam:PassRole"
             Resource = aws_iam_role.karpenter_node.arn
+          }
+        ]
+      })
+    }
+
+    # Add Loki IRSA permissions
+    loki = {
+      namespace       = "monitoring"
+      service_account = "loki"
+      inline_policy_json = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+          {
+            Effect = "Allow"
+            Action = [
+              "s3:ListBucket",
+              "s3:PutObject",
+              "s3:GetObject",
+              "s3:DeleteObject"
+            ]
+            Resource = [
+              aws_s3_bucket.loki_storage.arn,
+              "${aws_s3_bucket.loki_storage.arn}/*"
+            ]
           }
         ]
       })
