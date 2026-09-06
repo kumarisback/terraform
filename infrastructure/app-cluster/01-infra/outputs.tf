@@ -25,3 +25,13 @@ output "oidc_provider_url" {
 output "irsa_role_arns" {
   value = module.eks.irsa_role_arns
 }
+
+output "karpenter_instance_profile_name" {
+  description = "Name of the instance profile for Karpenter node instances"
+  value       = aws_iam_instance_profile.karpenter.name
+}
+
+output "karpenter_interruption_queue_name" {
+  description = "Name of SQS Queue for Karpenter Spot Interruption handling"
+  value       = aws_sqs_queue.karpenter_interruption.name
+}
