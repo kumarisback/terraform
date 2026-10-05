@@ -40,3 +40,8 @@ output "observability_bucket_names" {
   description = "S3 bucket name per observability component (loki, tempo). gitops addons/values/<env>/{loki,tempo}.yaml must use the same names."
   value       = { for k, b in aws_s3_bucket.observability : k => b.bucket }
 }
+
+output "efs_file_system_id" {
+  description = "The shared EFS file system; 02-services names it in the efs StorageClass."
+  value       = aws_efs_file_system.shared.id
+}

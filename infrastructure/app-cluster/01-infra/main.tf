@@ -492,39 +492,122 @@ module "eks" {
       service_account = "ebs-csi-controller-sa"
       policy_arns     = ["arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"]
     }
+
+    # EFS CSI driver (the aws-efs-csi-driver addon below): creates an EFS
+    # access point per PersistentVolumeClaim on the shared file system.
+    efs_csi_driver = {
+      namespace       = "kube-system"
+      service_account = "efs-csi-controller-sa"
+      policy_arns     = ["arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"]
+    }
   }
 }
 
 # ---------------------------------------------------------
-# EBS CSI driver
+# EKS add-ons for storage
 #
-# Since Kubernetes 1.23, EKS hands every EBS volume request to the EBS CSI
-# driver, and EKS doesn't install that driver on its own. Without it every
-# PersistentVolumeClaim stays Pending: Prometheus, Alertmanager, Grafana,
-# Loki and Tempo all need one. The StorageClasses that use it (gp3,
-# gp3-retain) are in gitops/platform/storage.
+#   aws-ebs-csi-driver   Since Kubernetes 1.23 EKS hands every EBS volume
+#                        request to this driver, and doesn't install it on its
+#                        own: without it every PersistentVolumeClaim stays
+#                        Pending (Prometheus, Alertmanager, Grafana, Loki,
+#                        Tempo). gp3 StorageClasses: gitops platform/storage.
+#   aws-efs-csi-driver   Mounts the shared EFS file system below; its "efs"
+#                        StorageClass is created by 02-services.
+#   snapshot-controller  The VolumeSnapshot CRDs and controller, so PVCs can
+#                        be snapshotted and restored (VolumeSnapshotClass:
+#                        gitops platform/storage).
 #
-# The version defaults to the one AWS marks as default for this cluster's
-# Kubernetes version; set ebs_csi_driver_version to pin another.
+# Each uses the version AWS marks as default for this cluster's Kubernetes
+# version, unless eks_addon_versions pins one. They're created after the
+# node group: their controllers need nodes to run on, and an addon created
+# before any node exists stays DEGRADED until the apply times out.
 # ---------------------------------------------------------
-data "aws_eks_addon_version" "ebs_csi_driver" {
-  addon_name         = "aws-ebs-csi-driver"
+locals {
+  eks_storage_addons = {
+    "aws-ebs-csi-driver"  = { irsa_role = "ebs_csi_driver" }
+    "aws-efs-csi-driver"  = { irsa_role = "efs_csi_driver" }
+    "snapshot-controller" = { irsa_role = null }
+  }
+}
+
+data "aws_eks_addon_version" "storage" {
+  for_each = local.eks_storage_addons
+
+  addon_name         = each.key
   kubernetes_version = var.cluster_version
 }
 
-resource "aws_eks_addon" "ebs_csi_driver" {
+resource "aws_eks_addon" "storage" {
+  for_each = local.eks_storage_addons
+
   cluster_name                = module.eks.cluster_name
-  addon_name                  = "aws-ebs-csi-driver"
-  addon_version               = coalesce(var.ebs_csi_driver_version, data.aws_eks_addon_version.ebs_csi_driver.version)
-  service_account_role_arn    = module.eks.irsa_role_arns["ebs_csi_driver"]
+  addon_name                  = each.key
+  addon_version               = lookup(var.eks_addon_versions, each.key, data.aws_eks_addon_version.storage[each.key].version)
+  service_account_role_arn    = each.value.irsa_role == null ? null : module.eks.irsa_role_arns[each.value.irsa_role]
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"
 
   tags = local.common_tags
 
-  # The controller runs on the node group: created before any node exists,
-  # the addon stays DEGRADED until the apply times out.
   depends_on = [module.eks]
+}
+
+moved {
+  from = aws_eks_addon.ebs_csi_driver
+  to   = aws_eks_addon.storage["aws-ebs-csi-driver"]
+}
+
+# ---------------------------------------------------------
+# EFS: shared storage
+#
+# An EBS volume attaches to one node in one availability zone
+# (ReadWriteOnce). EFS is NFS: pods on any node in any zone can mount the
+# same volume at once (ReadWriteMany), at higher latency and price per GB.
+# For shared files such as uploads, not for databases. It's billed only for
+# what's stored, so an empty file system costs nothing.
+# ---------------------------------------------------------
+resource "aws_efs_file_system" "shared" {
+  creation_token = "${var.project_name}-${var.environment}-shared"
+  encrypted      = true
+
+  # Files nobody has read for 30 days move to the cheaper Infrequent Access class.
+  lifecycle_policy {
+    transition_to_ia = "AFTER_30_DAYS"
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-${var.environment}-shared"
+  })
+}
+
+# NFS only from the cluster's nodes (managed node group and Karpenter both
+# use the EKS cluster security group), not from the whole VPC.
+resource "aws_security_group" "efs" {
+  name        = "${var.project_name}-${var.environment}-efs"
+  description = "NFS to the shared EFS file system from the EKS nodes"
+  vpc_id      = module.networking.vpc_id
+
+  ingress {
+    description     = "NFS from EKS nodes"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [module.eks.cluster_security_group_id]
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-${var.environment}-efs"
+  })
+}
+
+# One mount target per private app subnet, i.e. per availability zone the
+# nodes run in. count, not for_each: the subnet IDs aren't known until apply.
+resource "aws_efs_mount_target" "shared" {
+  count = length(var.private_app_subnet_cidrs)
+
+  file_system_id  = aws_efs_file_system.shared.id
+  subnet_id       = module.networking.private_app_subnet_ids[count.index]
+  security_groups = [aws_security_group.efs.id]
 }
 
 module "database" {

@@ -72,6 +72,27 @@ resource "kubernetes_service_account_v1" "tempo" {
   }
 }
 
+# StorageClass for the shared EFS file system (01-infra). Created here rather
+# than in gitops platform/storage with the EBS classes because it has to name
+# this environment's file system ID, which only exists once 01-infra is
+# applied. Each PVC gets its own EFS access point (its own directory, owned
+# by a dedicated uid/gid), so claims can't see each other's files.
+resource "kubernetes_storage_class_v1" "efs" {
+  metadata {
+    name = "efs"
+  }
+
+  storage_provisioner = "efs.csi.aws.com"
+  reclaim_policy      = "Delete"
+  volume_binding_mode = "Immediate" # EFS spans every zone, so there's no zone to wait for
+
+  parameters = {
+    provisioningMode = "efs-ap"
+    fileSystemId     = data.terraform_remote_state.infra.outputs.efs_file_system_id
+    directoryPerms   = "700"
+  }
+}
+
 # 1. Install core ArgoCD (Services & CRDs)
 resource "helm_release" "argocd" {
   name             = "argocd"
