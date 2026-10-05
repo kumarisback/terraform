@@ -1,6 +1,14 @@
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
+locals {
+  common_tags = {
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Project     = var.project_name
+  }
+}
+
 # ---------------------------------------------------------
 # Peering to the shared-services VPC (Jenkins)
 #
