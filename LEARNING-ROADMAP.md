@@ -117,51 +117,54 @@ without notes. If you can't do (c), don't move on.
 
 ## Progress tracker
 
-| # | Branch | Phase | 💰 | Done |
-|---|---|---|---|---|
-| 01 | `01-k8s-rbac` | A: Close gaps | | ☐ |
-| 02 | `02-production-workloads` | A | | ☐ |
-| 03 | `03-ingress-tls-dns` | A | | ☐ |
-| 04 | `04-autoscaling` | A | | ☐ |
-| 05 | `05-storage-statefulsets` | A | | ☐ |
-| 06 | `06-helm-authoring` | A | | ☐ |
-| 07 | `07-prometheus-grafana` | B: Observability | 💰 | ☐ |
-| 08 | `08-alerting-slo` | B | | ☐ |
-| 09 | `09-elk-logging` | B | 💰💰 | ☐ |
-| 10 | `10-tracing-otel` | B | 💰 | ☐ |
-| 11 | `11-synthetic-blackbox` | B | | ☐ |
-| 12 | `12-kafka-strimzi` | C: Streaming | 💰💰 | ☐ |
-| 13 | `13-kafka-ecosystem` | C | 💰💰 | ☐ |
-| 14 | `14-msk-managed` | C | 💰💰 | ☐ |
-| 15 | `15-keda-autoscaling` | C | | ☐ |
-| 16 | `16-kong-gateway` | D: Gateway/Mesh | | ☐ |
-| 17 | `17-kong-plugins` | D | | ☐ |
-| 18 | `18-service-mesh` | D | 💰 | ☐ |
-| 19 | `19-network-policies` | D | | ☐ |
-| 20 | `20-argo-rollouts` | E: Delivery | | ☐ |
-| 21 | `21-argo-workflows-events` | E | | ☐ |
-| 22 | `22-feature-flags` | E | | ☐ |
-| 23 | `23-rds-production` | F: Data | 💰 | ☐ |
-| 24 | `24-db-migrations` | F | | ☐ |
-| 25 | `25-backup-dr` | F | | ☐ |
-| 26 | `26-dynamodb-caching` | F | | ☐ |
-| 27 | `27-pod-security-policy` | G: Security | | ☐ |
-| 28 | `28-supply-chain` | G | | ☐ |
-| 29 | `29-runtime-security` | G | | ☐ |
-| 30 | `30-vault` | G | 💰 | ☐ |
-| 31 | `31-aws-security-services` | G | 💰 | ☐ |
-| 32 | `32-compliance-benchmarks` | G | | ☐ |
-| 33 | `33-github-actions-oidc` | H: CI/CD | | ☐ |
-| 34 | `34-terraform-cicd` | H | | ☐ |
-| 35 | `35-sonarqube-gates` | H | | ☐ |
-| 36 | `36-artifact-management` | H | | ☐ |
-| 37 | `37-multi-account-terragrunt` | H | 💰 | ☐ |
-| 38 | `38-backstage-crossplane` | H | 💰 | ☐ |
-| 39 | `39-chaos-engineering` | I: Resilience | | ☐ |
-| 40 | `40-load-testing` | I | | ☐ |
-| 41 | `41-cost-optimization` | I | | ☐ |
-| 42 | `42-multi-region-dr` | I | 💰💰💰 | ☐ |
-| 43 | `43-capstone` | J | | ☐ |
+✅ done · 🟡 partly done · ☐ not started. Last reviewed against the `tf`, `gitops` and
+app repos on 2026-10-05; the `tf/learning-topics` notes cover the steps marked done or partly done.
+
+| # | Branch | Phase | 💰 | Done | Notes |
+|---|---|---|---|---|---|
+| 01 | `01-k8s-rbac` | A: Close gaps |  | ✅ | Pending: ResourceQuota/LimitRange for staging and prod |
+| 02 | `02-production-workloads` | A |  | ✅ | Pending: dev and staging still deploy `newTag: "latest"` (item 6) |
+| 03 | `03-ingress-tls-dns` | A |  | 🟡 | Done: one shared ALB with path routing, frontend on ClusterIP. Pending: domain + Route53 zone, ACM cert, ExternalDNS, cert-manager |
+| 04 | `04-autoscaling` | A |  | 🟡 | Done: metrics-server, HPAs, Karpenter (tf + NodePool). Pending: AL2→AL2023 AMI, v1beta1→v1 API, VPA, load/spot tests (tf topic 05) |
+| 05 | `05-storage-statefulsets` | A |  | 🟡 | Done: EBS CSI driver, gp3/gp3-retain classes, StatefulSet, S3 for Loki/Tempo. Pending: EFS, VolumeSnapshot restore (tf topic 06) |
+| 06 | `06-helm-authoring` | A |  | ☐ |  |
+| 07 | `07-prometheus-grafana` | B: Observability | 💰 | ✅ | tf topic 07 |
+| 08 | `08-alerting-slo` | B |  | ✅ | Built and unit-tested. Pending: real Slack/PagerDuty keys and the live "break it" test |
+| 09 | `09-elk-logging` | B | 💰💰 | 🟡 | Done with Loki instead (item 9) + JSON logs, correlation, masking. Pending: ECK, Fluent Bit, ILM, Kibana, OpenSearch (tf topic 08) |
+| 10 | `10-tracing-otel` | B | 💰 | ✅ | Pending only the 2s-delay exercise (tf topic 09) |
+| 11 | `11-synthetic-blackbox` | B |  | ☐ |  |
+| 12 | `12-kafka-strimzi` | C: Streaming | 💰💰 | ☐ |  |
+| 13 | `13-kafka-ecosystem` | C | 💰💰 | ☐ |  |
+| 14 | `14-msk-managed` | C | 💰💰 | ☐ |  |
+| 15 | `15-keda-autoscaling` | C |  | ☐ |  |
+| 16 | `16-kong-gateway` | D: Gateway/Mesh |  | ☐ |  |
+| 17 | `17-kong-plugins` | D |  | ☐ |  |
+| 18 | `18-service-mesh` | D | 💰 | ☐ |  |
+| 19 | `19-network-policies` | D |  | ☐ |  |
+| 20 | `20-argo-rollouts` | E: Delivery |  | ☐ |  |
+| 21 | `21-argo-workflows-events` | E |  | ☐ |  |
+| 22 | `22-feature-flags` | E |  | ☐ |  |
+| 23 | `23-rds-production` | F: Data | 💰 | ☐ | RDS module exists in tf but `enable_rds = false` |
+| 24 | `24-db-migrations` | F |  | ☐ |  |
+| 25 | `25-backup-dr` | F |  | ☐ |  |
+| 26 | `26-dynamodb-caching` | F |  | ☐ |  |
+| 27 | `27-pod-security-policy` | G: Security |  | ☐ |  |
+| 28 | `28-supply-chain` | G |  | ☐ |  |
+| 29 | `29-runtime-security` | G |  | ☐ |  |
+| 30 | `30-vault` | G | 💰 | ☐ |  |
+| 31 | `31-aws-security-services` | G | 💰 | ☐ |  |
+| 32 | `32-compliance-benchmarks` | G |  | ☐ |  |
+| 33 | `33-github-actions-oidc` | H: CI/CD |  | ☐ |  |
+| 34 | `34-terraform-cicd` | H |  | ☐ | Starting point: the Jenkins plan/apply pipeline with Checkov |
+| 35 | `35-sonarqube-gates` | H |  | ☐ |  |
+| 36 | `36-artifact-management` | H |  | ☐ |  |
+| 37 | `37-multi-account-terragrunt` | H | 💰 | ☐ |  |
+| 38 | `38-backstage-crossplane` | H | 💰 | ☐ |  |
+| 39 | `39-chaos-engineering` | I: Resilience |  | ☐ |  |
+| 40 | `40-load-testing` | I |  | ☐ |  |
+| 41 | `41-cost-optimization` | I |  | ☐ |  |
+| 42 | `42-multi-region-dr` | I | 💰💰💰 | ☐ |  |
+| 43 | `43-capstone` | J |  | ☐ |  |
 
 Realistic pace as a beginner: **9–14 months** at 8–10 hrs/week. Don't rush. Steps
 01–11 alone will make you employable as a junior/mid DevOps engineer.
