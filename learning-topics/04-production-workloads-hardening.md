@@ -102,10 +102,12 @@ containers:
 All three needed `emptyDir` volumes for whatever `readOnlyRootFilesystem` now forces out of
 the image (`/tmp` for the JVM; `/var/cache/nginx` + `/var/run` + `/tmp` for nginx).
 
-**Image pinning** — still incomplete. `frontend` has a per-environment override mechanism
-(`apps/dev/kustomization.yaml`'s `images:` block) but it's set to `latest`; `order-service`/
-`user-service` aren't in that list at all. Deliberately left open rather than invented — see
-§3.3 for why `:latest` specifically became a problem during testing, not just a style nitpick.
+**Image pinning** — done in October 2026, after being left open here at first (§3.3 shows why
+`:latest` was a real problem, not a style nitpick). Every cloud overlay now lists all three
+services with the tag Jenkins pushes: the app commit's full SHA (gitops `9d93fb4`). ECR tags are
+immutable (tf `471408a`), so a pinned tag always means the same image, and the Jenkinsfiles push
+only SHA tags, never `latest` (app `a20c109`). Bumps go through the gitops Jenkins job as pull
+requests.
 
 ---
 
@@ -171,8 +173,8 @@ all.
 **Fix (per-incident, not structural):** `kubectl rollout restart deployment/<name> -n
 development` after every push, to force new pods to actually re-pull. `imagePullPolicy`
 defaults to `Always` for a `:latest` tag, so the re-pull does fetch fresh bits — it's the
-*trigger* that's missing, not the pull behavior itself. The structural fix (real version
-tags/digests) is still open — see §2's image-pinning note.
+*trigger* that's missing, not the pull behavior itself. The structural fix — immutable
+commit-SHA tags, pinned in Git — is described in §2's image-pinning note.
 
 ### 3.4 Draining a node evicted ArgoCD's own control plane, on a cluster too small to absorb it
 
@@ -302,11 +304,10 @@ kubectl uncordon <node-name>   # always, immediately after
 1. Apply §3.5's fix (`management.endpoint.health.group.readiness.include=readinessState,mongo`)
    to both Spring services, and re-run the full Mongo-outage test from §4. Confirm the pod
    *actually* leaves `Endpoints` this time — don't just trust the config, watch it happen.
-2. Pick real version tags (or digests) from `aws ecr describe-images` for all three services,
-   add `order-service`/`user-service` to `apps/dev/kustomization.yaml`'s `images:` block
-   (currently only `frontend` is listed), and replace `latest` everywhere. Re-verify that a
-   tag *change* (not a same-tag repush) is what actually makes ArgoCD show `OutOfSync` and
-   trigger a real sync — that's the behavior §3.3 showed was missing with `:latest`.
+2. Build one service from a new app commit, bump its tag in `apps/dev` through the gitops
+   Jenkins job, and watch the tag *change* make ArgoCD show `OutOfSync` and roll the pods —
+   the behavior §3.3 showed was missing with `:latest`. Then try pushing the same tag twice
+   and see ECR refuse the second push.
 3. Bonus, harder: decide whether `startupProbe`'s current `failureThreshold`/`periodSeconds`
    window is actually long enough for a cold JVM boot under load, by deliberately constraining
    CPU (temporarily lower the `limits.cpu`) and watching whether startup still completes in

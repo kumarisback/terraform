@@ -123,6 +123,15 @@ and staging/prod had no quota at all. An HPA blocked by a quota looks healthy; t
 `exceeded quota` events on the ReplicaSet. Now one sized quota for every environment (gitops
 `dc45a28`).
 
+### 3.7 ArgoCD and the HPAs undid each other
+
+The base Deployments set `replicas: 2`, the HPAs scale them 2–10, and ArgoCD syncs with
+self-heal. Every time an HPA scaled up, ArgoCD saw drift from Git and set the count back to 2;
+under load the services would have flapped instead of scaling. `replicas` is now removed from
+the Deployments (gitops `171ba16`), as the Kubernetes HPA docs recommend: whatever an HPA
+manages must not also be declared in Git. (The first sync after the change briefly drops each
+Deployment to 1 replica until its HPA restores 2.)
+
 ---
 
 ## 4. Verify — the full sequence

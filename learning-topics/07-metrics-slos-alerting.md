@@ -115,6 +115,18 @@ dashboard matches both
 (`{__name__=~"otelcol_receiver_accepted_spans(_total)?"}`, `5f725a4`). Check the real name in
 Prometheus before writing a query against it.
 
+### 3.6 A total outage paged nobody for 12 minutes
+
+Found while writing the alert drill. `ServiceDown` is `up == 0`, but a service scaled to 0 (or
+crash-looping, or unschedulable) has *no* scrape target, so there's no `up` series to be 0. The
+SLO alerts were blind too: they're computed from the services' own request metrics, which
+disappear with the pods. Only `ServiceMetricsMissing` fired, after 10 + 2 minutes, describing it
+as a configuration problem — and the frontend had no such alert at all. The fix is a signal
+that doesn't depend on the pods existing: `ServiceUnavailable` reads ready replicas from
+kube-state-metrics (critical, 2 minutes, all three services), and inhibits the alerts it implies
+so on-call gets one page (gitops `698f996`). Lesson: test alerts by *breaking things*, not by
+reading the rules — `scripts/alert-drill.sh` now does exactly that.
+
 ---
 
 ## 4. Verify — the full sequence
@@ -133,9 +145,9 @@ curl -s localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.labels.alert
 # Rules and tests, offline
 ./scripts/validate.sh        # includes promtool check rules + promtool test rules
 
-# Break it on purpose (dev): scale a backend to 0 -> ServiceDown (critical) within ~2 minutes,
-# with the SLO alerts for that job inhibited; scale back -> resolved notification
-kubectl scale deploy/order-service -n development --replicas=0
+# Break it on purpose: scales order-service to 0, waits for ServiceUnavailable in
+# Alertmanager, restores it and waits for the resolve (~4 minutes, lab or EKS)
+./scripts/alert-drill.sh order-service development
 ```
 
 ---
@@ -154,8 +166,10 @@ kubectl scale deploy/order-service -n development --replicas=0
 
 ## 6. Exercise — close the loop on what's still open
 
-1. Put real Slack and PagerDuty keys in Secrets Manager for dev and run the "break it on purpose"
-   list from the roadmap: scale to 0, break the DB connection, fill a PVC, exhaust CPU.
+1. Put real Slack and PagerDuty keys in Secrets Manager for dev (`microservices/dev/alerting`),
+   run `scripts/alert-drill.sh`, and check the page *and* the resolve arrive. Then break things
+   the drill doesn't: the DB connection (bad `MONGO_URI`), a full PVC, CPU exhaustion — and note
+   which alert fired for each and how long it took.
 2. Compute by hand how many failed requests a month the 99.5% availability SLO allows at your
    current traffic, and check it against the SLO dashboard.
 3. Turn on remote write to Amazon Managed Prometheus (commented in the cloud values) and
