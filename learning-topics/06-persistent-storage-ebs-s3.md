@@ -1,4 +1,4 @@
-# Topic 06 — Persistent Storage: EBS CSI, StorageClasses, StatefulSets, S3
+# Topic 06 — Persistent Storage: EBS, EFS, Snapshots, StatefulSets, S3
 
 See `01-vpc-peering.md` for how this folder works. Same structure here: Concept → this
 repo's implementation → real incidents → verify → troubleshooting → exercise.
@@ -26,6 +26,12 @@ StatefulSet, the monitoring stack's volumes).
   databases.
 - **StatefulSet vs Deployment**: stable pod names (`mongodb-0`), ordered start-up, and one PVC
   per pod from `volumeClaimTemplates` that follows the pod across restarts and reschedules.
+- **EBS vs EFS**: EBS is block storage, one node at a time, one zone, fast — for databases.
+  EFS is NFS: any number of pods on any node in any zone can mount the same volume
+  (`ReadWriteMany`), slower and dearer per GB — for shared files, never for a database.
+- **Snapshots**: a `VolumeSnapshot` is a point-in-time copy of a PVC (an EBS snapshot
+  underneath); a new PVC with `dataSource` pointing at it restores the data. Snapshots are not a
+  backup strategy on their own — they live and die with the cluster's objects unless kept.
 - **Block storage vs object storage**: logs and traces at scale go to S3 (cheap, durable,
   unlimited); the pod's disk only holds the write-ahead log of what isn't uploaded yet.
 
@@ -33,24 +39,31 @@ StatefulSet, the monitoring stack's volumes).
 
 ## 2. This repo's actual implementation
 
-**EBS CSI driver** — `tf/infrastructure/app-cluster/01-infra/main.tf`:
+**Storage add-ons** — `tf/infrastructure/app-cluster/01-infra/main.tf`, one `for_each`:
 ```hcl
-irsa_roles = {
-  ebs_csi_driver = {
-    namespace       = "kube-system"
-    service_account = "ebs-csi-controller-sa"
-    policy_arns     = ["arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"]
+locals {
+  eks_storage_addons = {
+    "aws-ebs-csi-driver"  = { irsa_role = "ebs_csi_driver" }   # AmazonEBSCSIDriverPolicy
+    "aws-efs-csi-driver"  = { irsa_role = "efs_csi_driver" }   # AmazonEFSCSIDriverPolicy
+    "snapshot-controller" = { irsa_role = null }               # VolumeSnapshot CRDs + controller
   }
 }
 
-resource "aws_eks_addon" "ebs_csi_driver" {
-  addon_name               = "aws-ebs-csi-driver"
-  addon_version            = coalesce(var.ebs_csi_driver_version, data.aws_eks_addon_version.ebs_csi_driver.version)
-  service_account_role_arn = module.eks.irsa_role_arns["ebs_csi_driver"]
-  depends_on               = [module.eks]   # its controller needs nodes to run on
+resource "aws_eks_addon" "storage" {
+  for_each                 = local.eks_storage_addons
+  addon_name               = each.key
+  addon_version            = lookup(var.eks_addon_versions, each.key, data.aws_eks_addon_version.storage[each.key].version)
+  service_account_role_arn = each.value.irsa_role == null ? null : module.eks.irsa_role_arns[each.value.irsa_role]
+  depends_on               = [module.eks]   # their controllers need nodes to run on
 }
 ```
-The version defaults to AWS's default for the cluster version; `ebs_csi_driver_version` pins one.
+Versions default to AWS's default for the cluster version; `eks_addon_versions` pins any of them.
+
+**EFS** — same file: an encrypted file system (unread files move to Infrequent Access after 30
+days), one mount target per private app subnet, and a security group that allows NFS (2049) only
+from the EKS cluster security group, i.e. from the nodes. `02-services` creates the `efs`
+StorageClass (`provisioningMode: efs-ap`, one access point — its own directory and owner — per
+PVC), because it has to name this environment's file system ID.
 
 **StorageClasses** — `gitops/platform/storage/storageclasses.yaml`, synced to every EKS cluster:
 
@@ -60,6 +73,8 @@ The version defaults to AWS's default for the cluster version; `ebs_csi_driver_v
 | `gp3-retain` | `Retain` | prod Prometheus (`addons/values/prod/kube-prometheus-stack.yaml`) — metrics have no other copy |
 
 Both: `type: gp3`, `encrypted: "true"`, `WaitForFirstConsumer`, `allowVolumeExpansion: true`.
+Next to them, `volumesnapshotclass.yaml` defines `ebs-snapshot` (default, `deletionPolicy:
+Delete`, so practice snapshots don't pile up on the bill).
 The kind lab defines its own `gp3` class on local disks (`local-setup/gp3-storageclass.yaml`),
 so the same values work in both places.
 
@@ -116,8 +131,15 @@ aws eks describe-addon --cluster-name microservices-dev-eks-cluster \
   --addon-name aws-ebs-csi-driver --query 'addon.[addonVersion,status]'
 kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-ebs-csi-driver
 
-# Classes present, gp3 is the only default
-kubectl get storageclass
+# All three storage add-ons ACTIVE
+for a in aws-ebs-csi-driver aws-efs-csi-driver snapshot-controller; do
+  aws eks describe-addon --cluster-name microservices-dev-eks-cluster --addon-name $a --query addon.status
+done
+
+# Classes present (gp3 the only default), EFS mount targets in every zone
+kubectl get storageclass,volumesnapshotclass
+aws efs describe-mount-targets --file-system-id "$(terraform output -raw efs_file_system_id)" \
+  --query 'MountTargets[].[AvailabilityZoneName,LifeCycleState]'
 
 # Every PVC Bound, volumes in the same zone as their pods
 kubectl get pvc -A
@@ -146,10 +168,11 @@ aws s3 ls s3://microservices-dev-loki-storage-602367507570/ --recursive | tail -
 
 ---
 
-## 6. Exercise — close the loop on what's still open
+## 6. Exercise — prove it on dev
 
-1. Install the EFS CSI driver and an EFS filesystem (mount target per AZ), and mount one
-   `ReadWriteMany` volume into two pods on different nodes. Explain when you'd want that.
-2. Install the CSI snapshot controller, take a `VolumeSnapshot` of `mongodb-0`'s PVC, delete the
-   StatefulSet *and* PVC, and restore from the snapshot.
+1. Mount one `ReadWriteMany` PVC on the `efs` class into two pods on different nodes (ideally
+   different zones), write from one and read from the other. Then explain why MongoDB must not
+   go there.
+2. Snapshot and restore: create a `VolumeSnapshot` of a gp3 PVC, delete the StatefulSet *and*
+   PVC, restore into a new PVC with `dataSource: {kind: VolumeSnapshot, ...}`, and check the data.
 3. Delete a PVC that uses `gp3-retain`, find the `Released` PV, and bind a new PVC to it.
