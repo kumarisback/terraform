@@ -56,6 +56,11 @@ module "ecr" {
   name         = var.project_name
   environment  = var.environment
   repositories = var.ecr_repositories
+
+  # A pushed tag can never be overwritten. The gitops overlays pin each
+  # service by its commit-SHA tag; with mutable tags a later push could
+  # silently change what that pin runs. Jenkins pushes only SHA tags.
+  image_tag_mutability = "IMMUTABLE"
 }
 
 
