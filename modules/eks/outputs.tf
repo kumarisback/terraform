@@ -33,6 +33,11 @@ output "oidc_provider_url" {
   value       = aws_iam_openid_connect_provider.eks_oidc.url
 }
 
+output "cluster_security_group_id" {
+  description = "The security group EKS creates for the cluster; managed node group nodes use it, so nodes launched another way (Karpenter) must too"
+  value       = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+}
+
 output "irsa_role_arns" {
   description = "Map of IRSA role name (as keyed in var.irsa_roles) to its IAM role ARN"
   value       = { for k, r in aws_iam_role.irsa : k => r.arn }

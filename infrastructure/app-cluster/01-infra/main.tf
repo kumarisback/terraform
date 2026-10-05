@@ -97,8 +97,8 @@ resource "aws_iam_role" "karpenter_node" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
     }]
   })
@@ -127,6 +127,16 @@ resource "aws_eks_access_entry" "karpenter_nodes" {
 resource "aws_iam_instance_profile" "karpenter" {
   name = "${var.project_name}-${var.environment}-karpenter-instance-profile"
   role = aws_iam_role.karpenter_node.name
+}
+
+# Karpenter's nodes must use the same security group as the managed node
+# group's: the one EKS creates for the cluster, which lets nodes, pods and
+# the control plane reach each other. EKS creates it, so it can only be
+# tagged here; the EC2NodeClass selects it by this tag.
+resource "aws_ec2_tag" "karpenter_discovery_cluster_sg" {
+  resource_id = module.eks.cluster_security_group_id
+  key         = "karpenter.sh/discovery"
+  value       = module.eks.cluster_name
 }
 
 # Create SQS Queue for Interruption Messages
@@ -295,9 +305,12 @@ module "networking" {
     "kubernetes.io/cluster/${var.project_name}-${var.environment}-eks-cluster" = "shared"
   }
 
+  # karpenter.sh/discovery: the subnets Karpenter launches nodes into
+  # (gitops platform/karpenter/dev, subnetSelectorTerms).
   private_subnet_tags = {
     "kubernetes.io/role/internal-elb"                                          = "1"
     "kubernetes.io/cluster/${var.project_name}-${var.environment}-eks-cluster" = "shared"
+    "karpenter.sh/discovery"                                                   = "${var.project_name}-${var.environment}-eks-cluster"
   }
 }
 
@@ -342,6 +355,10 @@ module "eks" {
       inline_policy_json = file("${path.module}/policies/aws-load-balancer-controller-iam-policy.json")
     }
 
+    # Karpenter's controller, following the controller policy in
+    # Karpenter's getting-started guide. One difference: the EC2NodeClass
+    # (gitops platform/karpenter/dev) names the instance profile created
+    # above instead of a role, so the controller needs no IAM write access.
     karpenter = {
       namespace       = "kube-system"
       service_account = "karpenter"
@@ -349,11 +366,9 @@ module "eks" {
         Version = "2012-10-17"
         Statement = [
           {
+            Sid    = "ReadEC2AndPricing"
             Effect = "Allow"
             Action = [
-              "ec2:CreateFleet",
-              "ec2:CreateLaunchTemplate",
-              "ec2:CreateTags",
               "ec2:DescribeAvailabilityZones",
               "ec2:DescribeImages",
               "ec2:DescribeInstances",
@@ -361,19 +376,62 @@ module "eks" {
               "ec2:DescribeInstanceTypes",
               "ec2:DescribeLaunchTemplates",
               "ec2:DescribeSecurityGroups",
+              "ec2:DescribeSpotPriceHistory",
               "ec2:DescribeSubnets",
-              "ec2:FreeAddresses",
-              "ec2:RunInstances",
-              "ec2:TerminateInstances",
-              "pricing:GetProducts",
-              "ssm:GetParameter"
+              "pricing:GetProducts"
             ]
             Resource = "*"
           },
           {
+            Sid      = "LaunchNodes"
+            Effect   = "Allow"
+            Action   = ["ec2:RunInstances", "ec2:CreateFleet", "ec2:CreateLaunchTemplate", "ec2:CreateTags"]
+            Resource = "*"
+          },
+          {
+            # Only what Karpenter launched itself: it tags its instances and
+            # launch templates with the NodePool that created them.
+            Sid      = "DeleteOwnNodes"
+            Effect   = "Allow"
+            Action   = ["ec2:TerminateInstances", "ec2:DeleteLaunchTemplate"]
+            Resource = "*"
+            Condition = {
+              StringLike = { "aws:ResourceTag/karpenter.sh/nodepool" = "*" }
+            }
+          },
+          {
+            # AMI aliases (al2023@...) resolve through AWS's public SSM parameters.
+            Sid      = "ResolveAMIs"
+            Effect   = "Allow"
+            Action   = "ssm:GetParameter"
+            Resource = "arn:aws:ssm:${data.aws_region.current.name}::parameter/aws/service/*"
+          },
+          {
+            Sid      = "ReadInterruptionQueue"
+            Effect   = "Allow"
+            Action   = ["sqs:DeleteMessage", "sqs:GetQueueUrl", "sqs:ReceiveMessage"]
+            Resource = aws_sqs_queue.karpenter_interruption.arn
+          },
+          {
+            Sid      = "PassNodeRole"
             Effect   = "Allow"
             Action   = "iam:PassRole"
             Resource = aws_iam_role.karpenter_node.arn
+          },
+          {
+            Sid      = "ReadInstanceProfile"
+            Effect   = "Allow"
+            Action   = "iam:GetInstanceProfile"
+            Resource = aws_iam_instance_profile.karpenter.arn
+          },
+          {
+            # Finds the API server endpoint. The ARN is built from the name
+            # because the cluster is created inside module.eks, which also
+            # takes this policy as input.
+            Sid      = "DiscoverCluster"
+            Effect   = "Allow"
+            Action   = "eks:DescribeCluster"
+            Resource = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.project_name}-${var.environment}-eks-cluster"
           }
         ]
       })
