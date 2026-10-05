@@ -61,6 +61,17 @@ resource "kubernetes_service_account_v1" "loki" {
   }
 }
 
+# IRSA-linked ServiceAccount for Tempo (trace storage in S3)
+resource "kubernetes_service_account_v1" "tempo" {
+  metadata {
+    name      = "tempo"
+    namespace = kubernetes_namespace_v1.monitoring.metadata[0].name
+    annotations = {
+      "eks.amazonaws.com/role-arn" = data.terraform_remote_state.infra.outputs.irsa_role_arns["tempo"]
+    }
+  }
+}
+
 # 1. Install core ArgoCD (Services & CRDs)
 resource "helm_release" "argocd" {
   name             = "argocd"

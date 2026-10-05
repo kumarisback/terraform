@@ -177,28 +177,50 @@ resource "aws_cloudwatch_event_target" "karpenter_event_targets" {
 }
 
 
-# Secure S3 Bucket for Loki long-term log storage
-resource "aws_s3_bucket" "loki_storage" {
-  bucket        = "${var.project_name}-${var.environment}-${var.loki_storage_bucket_prefix}-${data.aws_caller_identity.current.account_id}"
-  force_destroy = var.environment == "dev" ? true : false
+# ---------------------------------------------------------
+# S3 storage for the observability stack
+#
+# Loki (log chunks and index) and Tempo (trace blocks) keep their data in
+# S3 rather than on pod disks. Each bucket is private and encrypted, and
+# only its own ServiceAccount can use it (the loki/tempo IRSA roles below).
+#
+# Retention is enforced by Loki's and Tempo's own compactors (gitops
+# addons/values/cloud/loki.yaml: 30 days, tempo.yaml: 14 days). The lifecycle
+# rule here is only a safety net for objects they leave behind, so it must
+# be longer than those: a shorter one deletes chunks Loki still indexes.
+# ---------------------------------------------------------
+locals {
+  observability_buckets = {
+    loki  = { expiration_days = var.loki_bucket_expiration_days }
+    tempo = { expiration_days = var.tempo_bucket_expiration_days }
+  }
+}
+
+resource "aws_s3_bucket" "observability" {
+  for_each = local.observability_buckets
+
+  bucket        = "${var.project_name}-${var.environment}-${each.key}-storage-${data.aws_caller_identity.current.account_id}"
+  force_destroy = var.environment == "dev"
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-${var.environment}-loki-storage"
+    Name = "${var.project_name}-${var.environment}-${each.key}-storage"
   })
 }
 
-# Block public access to the log bucket
-resource "aws_s3_bucket_public_access_block" "loki_storage" {
-  bucket                  = aws_s3_bucket.loki_storage.id
+resource "aws_s3_bucket_public_access_block" "observability" {
+  for_each = aws_s3_bucket.observability
+
+  bucket                  = each.value.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
 
-# Enable encryption at rest
-resource "aws_s3_bucket_server_side_encryption_configuration" "loki_storage" {
-  bucket = aws_s3_bucket.loki_storage.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "observability" {
+  for_each = aws_s3_bucket.observability
+
+  bucket = each.value.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -207,20 +229,49 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "loki_storage" {
   }
 }
 
-# Configure automatic log expiration to control AWS storage costs
-resource "aws_s3_bucket_lifecycle_configuration" "loki_storage" {
-  bucket = aws_s3_bucket.loki_storage.id
+resource "aws_s3_bucket_lifecycle_configuration" "observability" {
+  for_each = aws_s3_bucket.observability
+
+  bucket = each.value.id
 
   rule {
-    id     = "log-expiration"
+    id     = "expire-orphaned-objects"
     status = "Enabled"
 
     filter {}
 
     expiration {
-      days = var.loki_retention_days
+      days = local.observability_buckets[each.key].expiration_days
+    }
+
+    # Both write large objects as multipart uploads; parts of an upload
+    # that never finished are billed until removed.
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
     }
   }
+}
+
+# The Loki bucket used to be declared on its own; these keep the existing
+# bucket (same name) instead of destroying and recreating it.
+moved {
+  from = aws_s3_bucket.loki_storage
+  to   = aws_s3_bucket.observability["loki"]
+}
+
+moved {
+  from = aws_s3_bucket_public_access_block.loki_storage
+  to   = aws_s3_bucket_public_access_block.observability["loki"]
+}
+
+moved {
+  from = aws_s3_bucket_server_side_encryption_configuration.loki_storage
+  to   = aws_s3_bucket_server_side_encryption_configuration.observability["loki"]
+}
+
+moved {
+  from = aws_s3_bucket_lifecycle_configuration.loki_storage
+  to   = aws_s3_bucket_lifecycle_configuration.observability["loki"]
 }
 
 
@@ -328,7 +379,7 @@ module "eks" {
       })
     }
 
-    # Add Loki IRSA permissions
+    # Loki and Tempo: read and write their own bucket only.
     loki = {
       namespace       = "monitoring"
       service_account = "loki"
@@ -336,17 +387,41 @@ module "eks" {
         Version = "2012-10-17"
         Statement = [
           {
+            Effect   = "Allow"
+            Action   = ["s3:ListBucket"]
+            Resource = aws_s3_bucket.observability["loki"].arn
+          },
+          {
+            Effect   = "Allow"
+            Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+            Resource = "${aws_s3_bucket.observability["loki"].arn}/*"
+          }
+        ]
+      })
+    }
+
+    tempo = {
+      namespace       = "monitoring"
+      service_account = "tempo"
+      inline_policy_json = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+          {
+            Effect   = "Allow"
+            Action   = ["s3:ListBucket"]
+            Resource = aws_s3_bucket.observability["tempo"].arn
+          },
+          {
             Effect = "Allow"
+            # Tempo tags the blocks it writes, so it also needs the tagging calls.
             Action = [
-              "s3:ListBucket",
               "s3:PutObject",
               "s3:GetObject",
-              "s3:DeleteObject"
+              "s3:DeleteObject",
+              "s3:GetObjectTagging",
+              "s3:PutObjectTagging"
             ]
-            Resource = [
-              aws_s3_bucket.loki_storage.arn,
-              "${aws_s3_bucket.loki_storage.arn}/*"
-            ]
+            Resource = "${aws_s3_bucket.observability["tempo"].arn}/*"
           }
         ]
       })

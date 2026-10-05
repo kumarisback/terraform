@@ -36,7 +36,7 @@ output "karpenter_interruption_queue_name" {
   value       = aws_sqs_queue.karpenter_interruption.name
 }
 
-output "loki_s3_bucket_id" {
-  description = "The ID of the Loki S3 bucket"
-  value       = aws_s3_bucket.loki_storage.id
+output "observability_bucket_names" {
+  description = "S3 bucket name per observability component (loki, tempo). gitops addons/values/<env>/{loki,tempo}.yaml must use the same names."
+  value       = { for k, b in aws_s3_bucket.observability : k => b.bucket }
 }

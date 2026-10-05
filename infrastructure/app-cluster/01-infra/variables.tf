@@ -236,14 +236,15 @@ variable "shared_services_state_key" {
   default     = "shared-services/terraform.tfstate"
 }
 
-variable "loki_storage_bucket_prefix" {
-  description = "Prefix for the Loki S3 storage bucket"
-  type        = string
-  default     = "loki-storage"
+variable "loki_bucket_expiration_days" {
+  description = "Days after which S3 deletes objects in the Loki bucket. A safety net only: Loki's compactor enforces retention (30 days, gitops addons/values/cloud/loki.yaml), so keep this longer."
+  type        = number
+  default     = 45
 }
 
-variable "loki_retention_days" {
-  description = "Number of days to keep logs in S3 before expiration"
+variable "tempo_bucket_expiration_days" {
+  description = "Days after which S3 deletes objects in the Tempo bucket. A safety net only: Tempo's compactor enforces retention (14 days, gitops addons/values/cloud/tempo.yaml), so keep this longer."
   type        = number
-  default     = 14
+  default     = 30
 }
+
