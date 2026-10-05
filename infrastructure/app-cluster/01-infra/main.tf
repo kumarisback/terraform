@@ -426,7 +426,47 @@ module "eks" {
         ]
       })
     }
+
+    # EBS CSI driver (the aws-ebs-csi-driver addon below): creates, attaches
+    # and deletes the EBS volumes behind PersistentVolumeClaims.
+    ebs_csi_driver = {
+      namespace       = "kube-system"
+      service_account = "ebs-csi-controller-sa"
+      policy_arns     = ["arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"]
+    }
   }
+}
+
+# ---------------------------------------------------------
+# EBS CSI driver
+#
+# Since Kubernetes 1.23, EKS hands every EBS volume request to the EBS CSI
+# driver, and EKS doesn't install that driver on its own. Without it every
+# PersistentVolumeClaim stays Pending: Prometheus, Alertmanager, Grafana,
+# Loki and Tempo all need one. The StorageClasses that use it (gp3,
+# gp3-retain) are in gitops/platform/storage.
+#
+# The version defaults to the one AWS marks as default for this cluster's
+# Kubernetes version; set ebs_csi_driver_version to pin another.
+# ---------------------------------------------------------
+data "aws_eks_addon_version" "ebs_csi_driver" {
+  addon_name         = "aws-ebs-csi-driver"
+  kubernetes_version = var.cluster_version
+}
+
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name                = module.eks.cluster_name
+  addon_name                  = "aws-ebs-csi-driver"
+  addon_version               = coalesce(var.ebs_csi_driver_version, data.aws_eks_addon_version.ebs_csi_driver.version)
+  service_account_role_arn    = module.eks.irsa_role_arns["ebs_csi_driver"]
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+
+  tags = local.common_tags
+
+  # The controller runs on the node group: created before any node exists,
+  # the addon stays DEGRADED until the apply times out.
+  depends_on = [module.eks]
 }
 
 module "database" {

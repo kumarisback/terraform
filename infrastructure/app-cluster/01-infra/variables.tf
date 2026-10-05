@@ -248,3 +248,8 @@ variable "tempo_bucket_expiration_days" {
   default     = 30
 }
 
+variable "ebs_csi_driver_version" {
+  description = "aws-ebs-csi-driver addon version, e.g. \"v1.40.0-eksbuild.1\". Null uses AWS's default version for cluster_version."
+  type        = string
+  default     = null
+}
