@@ -77,6 +77,17 @@ publish stage runs on the host, fetches a 12-hour ECR-only token, and pipes it i
 container's `helm registry login`. Lesson: hand containers the narrowest credential, never the
 host's role.
 
+### 3.5 The newest test plugin doesn't load in our Helm
+
+The CI image first installed helm-unittest 1.2.1 with `helm plugin install <git URL>`. Two
+problems. Helm 3 refuses that plugin outright (`unknown field "platformHooks"`; the field arrived
+in 1.1.0 for Helm 4), so every build would have failed at the unit tests. And the install trusted
+a Git tag and a checksum file downloaded from the same release, against the image's rule that
+every download is checked against a SHA-256 recorded in the Dockerfile. The image now pins 1.0.3,
+the last release Helm 3 loads, downloads its release tarball, checks the recorded checksum and
+unpacks it into the plugin directory: no install hook runs. Lesson: test tooling against the
+version CI runs, not the one on your laptop.
+
 ---
 
 ## 4. Verify — the full sequence
@@ -110,6 +121,7 @@ helm show chart oci://602367507570.dkr.ecr.us-east-1.amazonaws.com/charts/micros
 | Lab: `invalid ownership metadata` | Helm older than 3.17 (no `--take-ownership`) |
 | Two HPAs for order-service | the old `order-hpa` wasn't deleted (lab, §3.3) |
 | Publish fails: `already published with different contents` | the chart changed without a `version` bump in `Chart.yaml` |
+| `failed to load plugins: ... unknown field "platformHooks"` | a helm-unittest of 1.1.0 or later under Helm 3 (§3.5) |
 
 ---
 
