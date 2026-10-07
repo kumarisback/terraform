@@ -169,6 +169,31 @@ resource "helm_release" "argocd_root_app" {
             repoURL        = tostring(var.argocd_gitops_repo_url)
             targetRevision = tostring(var.argocd_gitops_repo_revision)
             path           = tostring(var.argocd_gitops_repo_path)
+            # The children it creates pin targetRevision: HEAD in Git. These
+            # patches set them to the root's revision too, so the whole
+            # cluster deploys one branch: apps whose manifests come from the
+            # gitops repo (part-of=gitops-config) and the Helm add-ons, whose
+            # values come from it (part-of=cluster-addons, second source).
+            kustomize = {
+              patches = [
+                {
+                  target = { kind = "Application", labelSelector = "app.kubernetes.io/part-of=gitops-config" }
+                  patch = yamlencode([{
+                    op    = "replace"
+                    path  = "/spec/source/targetRevision"
+                    value = tostring(var.argocd_gitops_repo_revision)
+                  }])
+                },
+                {
+                  target = { kind = "Application", labelSelector = "app.kubernetes.io/part-of=cluster-addons" }
+                  patch = yamlencode([{
+                    op    = "replace"
+                    path  = "/spec/sources/1/targetRevision"
+                    value = tostring(var.argocd_gitops_repo_revision)
+                  }])
+                }
+              ]
+            }
           }
           destination = {
             server    = "https://kubernetes.default.svc"
