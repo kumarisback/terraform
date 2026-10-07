@@ -264,6 +264,19 @@ resource "aws_instance" "jenkins" {
   # package installs still works through the shared-services NAT gateway.
   associate_public_ip_address = false
 
+  # IMDSv2 only: IMDSv1 is the classic SSRF credential-theft path. The hop
+  # limit stays 1, so containers on this host (docker build steps, the
+  # ci/Dockerfile agent) can't reach the metadata service and take this
+  # role's credentials, which can create IAM roles. Steps that need AWS run
+  # on the host and hand containers a narrower credential (the gitops
+  # Jenkinsfile passes only a 12-hour ECR login token). Changed in place,
+  # without replacing the instance.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   root_block_device {
     volume_size = 8
     volume_type = "gp3"
