@@ -45,3 +45,13 @@ output "efs_file_system_id" {
   description = "The shared EFS file system; 02-services names it in the efs StorageClass."
   value       = aws_efs_file_system.shared.id
 }
+
+output "synthetics_canary_name" {
+  description = "The CloudWatch Synthetics canary checking the app from outside (null while synthetics_base_url is unset)."
+  value       = one(aws_synthetics_canary.app[*].name)
+}
+
+output "synthetics_alarm_topic_arn" {
+  description = "SNS topic the canary's alarm notifies; subscribe PagerDuty, Slack (AWS Chatbot) or email to it."
+  value       = one(aws_sns_topic.synthetics_alarms[*].arn)
+}

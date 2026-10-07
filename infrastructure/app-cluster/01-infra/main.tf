@@ -333,7 +333,8 @@ module "eks" {
   group_mapped_users     = var.eks_group_mapped_users
   private_access_cidrs   = var.peer_with_shared_services ? data.terraform_remote_state.shared_services[*].outputs.vpc_cidr_block : []
 
-  irsa_roles = {
+  # Plus the roles of optional add-ons (observability.tf).
+  irsa_roles = merge({
     external_secrets = {
       namespace       = "kube-system"
       service_account = "external-secrets-sa"
@@ -500,7 +501,7 @@ module "eks" {
       service_account = "efs-csi-controller-sa"
       policy_arns     = ["arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"]
     }
-  }
+  }, local.container_insights_irsa_roles)
 }
 
 # ---------------------------------------------------------

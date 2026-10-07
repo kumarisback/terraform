@@ -30,3 +30,11 @@ argocd_allowed_cidrs       = []
 argocd_gitops_repo_url      = "https://github.com/kumarisback/gitops.git"
 argocd_gitops_repo_revision = "HEAD"
 argocd_gitops_repo_path     = "bootstrap/envs/prod"
+
+# AWS-managed monitoring next to the Prometheus stack (01-infra
+# observability.tf, learning topic 11). Off: both bill while on. For the
+# canary, set the ALB's DNS name after the first ArgoCD sync:
+#   kubectl get ingress app-ingress -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+enable_container_insights = false
+# synthetics_base_url    = "http://<ALB DNS name>"
+# synthetics_alarm_email = "you@example.com"

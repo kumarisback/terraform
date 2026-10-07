@@ -19,3 +19,6 @@ terraform.tfvars
 # Allow environment definition files
 !environments/**/*.tfvars
 
+
+# Built Synthetics canary zips (infrastructure/app-cluster/01-infra/observability.tf)
+.build/

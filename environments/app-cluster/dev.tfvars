@@ -40,3 +40,11 @@ eks_viewer_users = []
 eks_group_mapped_users = {
   "arn:aws:iam::602367507570:user/SRE_TEST" = ["sre"]
 }
+
+# AWS-managed monitoring next to the Prometheus stack (01-infra
+# observability.tf, learning topic 11). Off: both bill while on. For the
+# canary, set the ALB's DNS name after the first ArgoCD sync:
+#   kubectl get ingress app-ingress -n development -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+enable_container_insights = false
+# synthetics_base_url    = "http://<ALB DNS name>"
+# synthetics_alarm_email = "you@example.com"

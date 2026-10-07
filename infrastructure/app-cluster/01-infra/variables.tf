@@ -249,7 +249,47 @@ variable "tempo_bucket_expiration_days" {
 }
 
 variable "eks_addon_versions" {
-  description = "Pinned versions for the storage EKS add-ons, keyed by add-on name, e.g. { \"aws-ebs-csi-driver\" = \"v1.40.0-eksbuild.1\" }. Add-ons not listed use AWS's default version for cluster_version."
+  description = "Pinned versions for the EKS add-ons (storage, and amazon-cloudwatch-observability when enabled), keyed by add-on name, e.g. { \"aws-ebs-csi-driver\" = \"v1.40.0-eksbuild.1\" }. Add-ons not listed use AWS's default version for cluster_version."
   type        = map(string)
   default     = {}
+}
+
+# --- AWS-managed monitoring (observability.tf), off by default ---
+
+variable "enable_container_insights" {
+  description = "Install the amazon-cloudwatch-observability EKS add-on (Container Insights) to compare CloudWatch's managed metrics with the self-hosted Prometheus stack. Billed per metric while on; container logs stay off (Alloy ships them to Loki)."
+  type        = bool
+  default     = false
+}
+
+variable "synthetics_base_url" {
+  description = "The app's public URL for the CloudWatch Synthetics canary, scheme and host only: the ALB's DNS name after the first ArgoCD sync (kubectl get ingress app-ingress -n <namespace>), e.g. http://k8s-microservices-0123456789.us-east-1.elb.amazonaws.com, and https://<domain> once it exists. null: no canary."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.synthetics_base_url == null || can(regex("^https?://[^/]+/?$", var.synthetics_base_url))
+    error_message = "synthetics_base_url must be http(s)://host with no path (a trailing / is fine), e.g. http://k8s-microservices-0123456789.us-east-1.elb.amazonaws.com."
+  }
+}
+
+variable "synthetics_runtime_version" {
+  description = "syn-nodejs-puppeteer runtime version for the canary (e.g. 17.0). Pinned: runtime majors change behaviour, so raise it deliberately; plans warn once AWS schedules this one's deprecation. The script needs 13.1 or later."
+  type        = string
+  default     = "17.0"
+
+  validation {
+    condition = try(
+      tonumber(split(".", var.synthetics_runtime_version)[0]) > 13 ||
+      (tonumber(split(".", var.synthetics_runtime_version)[0]) == 13 && tonumber(split(".", var.synthetics_runtime_version)[1]) >= 1),
+      false
+    )
+    error_message = "synthetics_runtime_version must be MAJOR.MINOR, 13.1 or later (the script uses the @aws/synthetics-* modules)."
+  }
+}
+
+variable "synthetics_alarm_email" {
+  description = "Optional email address subscribed to the canary's alarm topic (AWS sends a confirmation mail first). PagerDuty or Slack (AWS Chatbot) subscribe to the same topic: output synthetics_alarm_topic_arn."
+  type        = string
+  default     = null
 }

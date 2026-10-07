@@ -12,6 +12,11 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
+    # Zips the Synthetics canary script (observability.tf).
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.7"
+    }
   }
 }
 
