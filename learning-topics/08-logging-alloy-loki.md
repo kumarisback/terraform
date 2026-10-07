@@ -116,6 +116,25 @@ no S3 access. The same values also lacked the `schemaConfig` chart 6.6.2 require
 Application could never have synced (`d1da68a`). Helm doesn't warn about unknown keys: check
 keys against the chart's own `values.yaml`, and render with `helm template` (validate.sh does).
 
+### 3.7 Secrets the masking rules didn't cover
+
+A security review flagged sensitive data reaching the log store, and four test cases proved it:
+`Authorization: Basic …` and `Cookie:` values in HTTP header dumps (only Bearer was masked),
+numeric values of secret keys — a card number, a CVV — in plain and escaped JSON (only string
+values were masked), AWS access key IDs and PEM private keys. New rules cover each one (gitops
+`2826ee9`), with replacements that keep the line valid JSON. Lesson: masking rules are a list
+of *known* shapes; review them against real header dumps and payloads, and add a test case for
+every shape you add.
+
+### 3.8 A field that was both a value and a parent
+
+The API log had `http.request.body` (the payload) next to `http.request.body.size`. Loki stores
+lines as text, so it never mattered; Elasticsearch expands dotted names into objects and can't
+make `body` both a string and an object. Elasticsearch 9 didn't even reject the line — it moved
+it to the data stream's *failure store* and answered "created", so it simply never showed up in
+searches. Renamed to `http.request.body.content` (the ECS name) in the services (app
+`76da762`), with a unit test that no logged field name is the prefix of another.
+
 ---
 
 ## 4. Verify — the full sequence
