@@ -105,6 +105,8 @@ variable "ecr_repositories" {
   default = [
     "user-service",
     "order-service",
-    "frontend"
+    "frontend",
+    # Helm charts as OCI artifacts (gitops scripts/publish-chart.sh).
+    "charts/microservice"
   ]
 }
