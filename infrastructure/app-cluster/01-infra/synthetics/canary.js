@@ -8,6 +8,7 @@
 // Needs syn-nodejs-puppeteer-13.1 or later (the @aws/synthetics-* module
 // names). Each check is a step: a failed step fails the run but the others
 // still run (executeHttpStep's default), so the report shows which one.
+const crypto = require('crypto');
 const synthetics = require('@aws/synthetics-puppeteer');
 
 const base = new URL(process.env.BASE_URL);
@@ -49,10 +50,12 @@ exports.handler = async () => {
   await synthetics.executeHttpStep('frontend-home', request('GET', '/'), expect(200));
   await synthetics.executeHttpStep('order-service-status', request('GET', '/api/orders/status'),
     expect(200, /"status"\s*:\s*"ONLINE"/));
-  // A user that doesn't exist must be refused with 401: user-service, its
-  // security chain and MongoDB answered. Not a real credential.
+  // Must be refused with 401: user-service, its security chain and MongoDB
+  // answered. The password is new on every run, never in Git: anyone can
+  // sign up, so a known one would let anyone register it and fail this
+  // check at will. A 200 means sign-in accepted a password nobody knows.
   await synthetics.executeHttpStep('user-service-signin',
     request('POST', '/api/auth/signin',
-      JSON.stringify({ username: 'synthetic-probe', password: 'synthetic-probe-not-a-password' })),
+      JSON.stringify({ username: 'synthetic-probe', password: crypto.randomUUID() })),
     expect(401));
 };

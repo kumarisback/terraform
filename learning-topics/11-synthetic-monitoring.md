@@ -37,7 +37,7 @@ Synthetics canary and Container Insights, both off by default). The user-facing 
 | Where | What |
 |---|---|
 | `gitops/addons/applications/blackbox-exporter.yaml` | prometheus-blackbox-exporter 11.19.1 (exporter 0.28.0); two replicas in the cloud |
-| `gitops/addons/values/common/blackbox-exporter.yaml` | *how* to probe: modules `http_2xx`, `http_2xx_online` (body must say ONLINE), `http_signin_rejected` (POST, expects exactly 401) |
+| `gitops/addons/values/common/blackbox-exporter.yaml` | *how* to probe: modules `http_2xx`, `http_2xx_online` (body must say ONLINE), `http_signin_rejected` (POST with a random password, expects exactly 401); a NetworkPolicy limiting who may call it and what it may reach (§3.5) |
 | `gitops/observability/components/synthetic-probes` | *what* to probe: one `Probe` per service, straight to its Service; the overlay fills in the namespace |
 | `gitops/observability/local/edge-probes.yaml` | the same checks through Traefik (`via="ingress"`) |
 | `gitops/observability/base/synthetic-alerts.yaml` | EndpointDown, EndpointSlow, TLSCertificateExpiringSoon, SyntheticProberDown, SyntheticProbesMissing; 8 unit tests |
@@ -98,7 +98,28 @@ request carries a fixed User-Agent (`blackbox-exporter (synthetic probe)`, the c
 `CloudWatchSynthetics/...`) so logs and detectors can exempt it. Lesson: tell the security
 team about synthetic traffic before it tells you.
 
-### 3.5 Pinning the canary runtime
+### 3.5 Two security findings in the first version
+
+A security review of the first commit found two problems with the exporter itself:
+
+- **The probe's password was public.** The sign-in body sat in Git, and sign-up is open to
+  anyone. Registering `synthetic-probe` with that password would turn the probe's 401 into a
+  200 and page on-call whenever someone liked, until people learned to ignore the alert.
+  Now an init container writes a random password into a memory-only volume when the pod
+  starts (`body_file`), and the canary makes a new one per run. A 200 now means sign-in
+  accepted a password nobody knows: a real alarm.
+- **The exporter is a request proxy.** `/probe?target=<any URL>` makes it fetch anything,
+  so any pod that can reach it could use it against internal addresses (server-side request
+  forgery). A NetworkPolicy now lets only Prometheus call it and lets it reach only DNS and
+  the namespaces it probes. It isn't enforced yet: the VPC CNI and the lab enforce
+  NetworkPolicy only after roadmap step 19. The node's metadata service is safe meanwhile
+  for a narrower reason: the nodes require IMDSv2, whose token needs a PUT the probe
+  modules can't send.
+
+Lesson: anything that makes requests on someone else's behalf, or proves "success" with a
+credential, is attack surface. Review it like one.
+
+### 3.6 Pinning the canary runtime
 
 `syn-nodejs-puppeteer` went from 9.x to 17.0 in about two years, and majors aren't backward
 compatible: 13.1 renamed the modules the script imports (`Synthetics` →
@@ -106,7 +127,7 @@ compatible: 13.1 renamed the modules the script imports (`Synthetics` →
 next. The runtime is pinned (`synthetics_runtime_version`, 17.0), looked up at plan time, and a
 `check` block warns on every plan once AWS schedules its deprecation.
 
-### 3.6 Two AWS traps in the alarm path
+### 3.7 Two AWS traps in the alarm path
 
 - **SNS encryption.** CloudWatch alarms can't publish to a topic encrypted with the
   AWS-managed `aws/sns` key, because that key's policy can't grant CloudWatch. The topic is
@@ -152,7 +173,9 @@ in-cluster probe stays green. That difference is the point of probing from outsi
 |---|---|
 | `kubectl get probes` has them, but no `probe_success` | Prometheus doesn't select them: they need the label `release: kube-prometheus-stack` |
 | `probe_success` 0, `probe_http_status_code` 0 | no answer: DNS name wrong (`<service>.<namespace>.svc.cluster.local`) or no ready endpoints |
-| Sign-in check: status 500 | user-service couldn't check credentials, usually MongoDB; 200 means someone registered `synthetic-probe` with the probe's password |
+| Sign-in check: status 500 | user-service couldn't check credentials, usually MongoDB |
+| Sign-in check: status 200 | sign-in accepted a random password: authentication is broken, roll back user-service (§3.5) |
+| Sign-in probe sends an empty body | `/etc/blackbox-probe/signin.json` missing: the `signin-body` init container failed (`kubectl logs <pod> -c signin-body -n monitoring`) |
 | `Invalid HTTP version number` in `debug=true` | the endpoint answers HTTP/1.0 and the module allows 1.1 and 2 only (§3.3) |
 | Alerts carry `namespace="monitoring"` | a Probe without a `namespace` label: the operator then uses the Probe's own namespace |
 | Canary runs fail with `Cannot find module '@aws/synthetics-puppeteer'` | runtime older than 13.1 (the variable's validation should have stopped it) |
