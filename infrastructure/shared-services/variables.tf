@@ -106,6 +106,7 @@ variable "ecr_repositories" {
     "user-service",
     "order-service",
     "frontend",
+    "notification-service",
     # Helm charts as OCI artifacts (gitops scripts/publish-chart.sh).
     "charts/microservice"
   ]

@@ -8,4 +8,4 @@ jenkins_instance_type = "t3.medium"
 # CIDR if you specifically want a direct network path from inside the VPC.
 jenkins_allowed_cidrs = []
 # charts/microservice holds the gitops repo's Helm chart (OCI), next to the images.
-ecr_repositories = ["user-service", "order-service", "frontend", "charts/microservice"]
+ecr_repositories = ["user-service", "order-service", "frontend", "notification-service", "charts/microservice"]
