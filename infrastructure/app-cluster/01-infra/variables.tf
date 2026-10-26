@@ -293,3 +293,22 @@ variable "synthetics_alarm_email" {
   type        = string
   default     = null
 }
+
+# --- Events archive (streaming.tf), off by default ---
+
+variable "enable_events_archive" {
+  description = "Create the S3 bucket and IRSA role for the Kafka events archive (gitops streaming/components/events-archive). Turn it on together with that component in the environment's streaming overlay: the connector fails without the bucket, and the bucket stays empty without the connector."
+  type        = bool
+  default     = false
+}
+
+variable "events_archive_retention_days" {
+  description = "Days the events archive keeps each file. Kafka itself keeps the topics for 7 days (gitops streaming/base/topics.yaml)."
+  type        = number
+  default     = 365
+
+  validation {
+    condition     = var.events_archive_retention_days >= 7
+    error_message = "events_archive_retention_days must be at least 7: the archive should outlive the topics' own retention."
+  }
+}

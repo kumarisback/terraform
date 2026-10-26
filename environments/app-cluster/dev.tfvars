@@ -48,3 +48,8 @@ eks_group_mapped_users = {
 enable_container_insights = false
 # synthetics_base_url    = "http://<ALB DNS name>"
 # synthetics_alarm_email = "you@example.com"
+
+# The Kafka events archive (01-infra streaming.tf, learning topic 13): an
+# S3 bucket and the role Kafka Connect writes to it with. On in dev, where
+# gitops streaming/dev runs the connector. Costs cents: a few MB a month.
+enable_events_archive = true

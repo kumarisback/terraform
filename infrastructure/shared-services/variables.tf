@@ -107,6 +107,8 @@ variable "ecr_repositories" {
     "order-service",
     "frontend",
     "notification-service",
+    # Kafka Connect with the S3 sink plugin (app kafka-connect/).
+    "kafka-connect",
     # Helm charts as OCI artifacts (gitops scripts/publish-chart.sh).
     "charts/microservice"
   ]

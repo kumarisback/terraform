@@ -55,3 +55,8 @@ output "synthetics_alarm_topic_arn" {
   description = "SNS topic the canary's alarm notifies; subscribe PagerDuty, Slack (AWS Chatbot) or email to it."
   value       = one(aws_sns_topic.synthetics_alarms[*].arn)
 }
+
+output "events_archive_bucket_name" {
+  description = "The Kafka events archive bucket (null while enable_events_archive is off). gitops streaming/<env>/kustomization.yaml must name the same bucket."
+  value       = one(aws_s3_bucket.events_archive[*].bucket)
+}
