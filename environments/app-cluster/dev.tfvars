@@ -53,3 +53,8 @@ enable_container_insights = false
 # S3 bucket and the role Kafka Connect writes to it with. On in dev, where
 # gitops streaming/dev runs the connector. Costs cents: a few MB a month.
 enable_events_archive = true
+
+# Enforce NetworkPolicies (01-infra main.tf, the VPC CNI add-on): gitops
+# streaming/base/network-policies.yaml keeps Kafka UI and the schema
+# registry away from other pods, as the lab already does.
+enable_network_policy = true

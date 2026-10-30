@@ -249,9 +249,15 @@ variable "tempo_bucket_expiration_days" {
 }
 
 variable "eks_addon_versions" {
-  description = "Pinned versions for the EKS add-ons (storage, and amazon-cloudwatch-observability when enabled), keyed by add-on name, e.g. { \"aws-ebs-csi-driver\" = \"v1.40.0-eksbuild.1\" }. Add-ons not listed use AWS's default version for cluster_version."
+  description = "Pinned versions for the EKS add-ons (storage; vpc-cni and amazon-cloudwatch-observability when enabled), keyed by add-on name, e.g. { \"aws-ebs-csi-driver\" = \"v1.40.0-eksbuild.1\" }. Add-ons not listed use AWS's default version for cluster_version."
   type        = map(string)
   default     = {}
+}
+
+variable "enable_network_policy" {
+  description = "Run the VPC CNI as a managed EKS add-on with NetworkPolicy enforcement on (main.tf). Off, NetworkPolicies in gitops are accepted but ignored. Roadmap step 19 turns it on in every environment."
+  type        = bool
+  default     = false
 }
 
 # --- AWS-managed monitoring (observability.tf), off by default ---

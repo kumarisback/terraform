@@ -559,6 +559,45 @@ moved {
 }
 
 # ---------------------------------------------------------
+# The VPC CNI as a managed add-on, enforcing NetworkPolicies
+#
+# EKS installs the VPC CNI (pod networking) on its own, unmanaged and with
+# NetworkPolicy enforcement off: policies in gitops are then accepted and
+# ignored. Managed, with enableNetworkPolicy, its node agent enforces them.
+# Only pods a policy selects are affected; roadmap step 19 adds a default
+# deny per namespace and turns this on everywhere.
+#
+# Taking over the existing installation restarts the aws-node pods once;
+# running pods keep their network. preserve: if this resource is ever
+# removed, the CNI stays installed (deleting it would cut every pod off).
+# ---------------------------------------------------------
+data "aws_eks_addon_version" "vpc_cni" {
+  count = var.enable_network_policy ? 1 : 0
+
+  addon_name         = "vpc-cni"
+  kubernetes_version = var.cluster_version
+}
+
+resource "aws_eks_addon" "vpc_cni" {
+  count = var.enable_network_policy ? 1 : 0
+
+  cluster_name  = module.eks.cluster_name
+  addon_name    = "vpc-cni"
+  addon_version = lookup(var.eks_addon_versions, "vpc-cni", data.aws_eks_addon_version.vpc_cni[0].version)
+  # Permissions: the node role's AmazonEKS_CNI_Policy, as before.
+  configuration_values = jsonencode({
+    enableNetworkPolicy = "true"
+  })
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+  preserve                    = true
+
+  tags = local.common_tags
+
+  depends_on = [module.eks]
+}
+
+# ---------------------------------------------------------
 # EFS: shared storage
 #
 # An EBS volume attaches to one node in one availability zone

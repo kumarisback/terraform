@@ -53,6 +53,7 @@ streaming.tf`) and an ECR repository. The user guide is `gitops/docs/KAFKA.md`, 
 | tf `01-infra/streaming.tf` | `enable_events_archive` (on in `dev.tfvars`): bucket (no public access, SSE, HTTPS only, 365-day expiry, no storage-class transitions), IRSA role `kafka_connect` for SA `kafka/events-connect-connect` allowed only `s3:PutObject`, `s3:AbortMultipartUpload` |
 | tf `shared-services` | ECR repository `kafka-connect` |
 | gitops `addons/streaming/kafka-ui.yaml`, `streaming/tools/avro-console.yaml` | Read-only Kafka UI (kafbat) with Avro decoding; a pod with the Avro console tools to read and replay events |
+| gitops `streaming/base/network-policies.yaml`; tf `01-infra` `aws_eks_addon.vpc_cni` | Kafka UI reachable only by port-forward; the registry's API only from the services and its tools; NetworkPolicy enforcement on EKS (`enable_network_policy`, on in dev) |
 | gitops `kafka-alerts.yaml` | `OutboxPublishingStalled`, `OutboxBacklogGrowing`, `KafkaConnectConnectorFailed`, `KafkaConnectTaskFailed`, all unit-tested |
 
 Why these choices: **Apicurio** rather than Confluent Schema Registry because it is Apache
@@ -116,7 +117,25 @@ Kubernetes, `oneOf`/`anyOf`/`allOf`/`not` only constrain fields declared beside 
 converter no longer adds the restriction inside them, and a typo in the item itself is still
 caught.
 
-### 3.7 Connect without the right to create topics
+### 3.7 "Reachable only through port-forward" wasn't true
+
+The first Kafka UI had no login, on the grounds that it was reachable only through
+`kubectl port-forward`. A security review of the pushed commit pointed out that its Service
+answered every pod in the cluster, so any compromised pod could browse every topic; the
+schema registry's API, admin endpoints included, was open the same way. Two NetworkPolicies
+(`gitops streaming/base/network-policies.yaml`) fix it: nothing may connect to Kafka UI
+(port-forward enters the pod's network namespace directly and isn't affected), and only the
+services' namespace and three tools may reach the registry's API.
+
+A policy only counts where the network plugin enforces it. KinD has done so since 0.24, so
+the lab was fine. EKS's VPC CNI, as EKS installs it, ignores policies, so dev now runs it
+as a managed add-on with `enableNetworkPolicy` (`enable_network_policy`, 01-infra main.tf),
+pulled forward from step 19, with `preserve = true` so removing the resource can never
+uninstall pod networking. Left open: a service may still call the registry's admin API.
+Network policies can't tell callers apart by what they call; the mesh's authorization (step
+18) can.
+
+### 3.8 Connect without the right to create topics
 
 Connect creates its three internal topics at start if they're missing. Here topics only come
 from `KafkaTopic` resources, so the Connect user has no `Create`. Kafka's
@@ -157,6 +176,8 @@ aws s3 ls s3://microservices-dev-events-archive-602367507570/ --recursive | head
 | order-service: `Transaction numbers are only allowed on a replica set member` | MongoDB isn't a replica set (lab: the init Job didn't run; the URI lacks `replicaSet=rs0`) |
 | `order_event_publish_failed` with a 409 | the registry refused a new schema version: not backward compatible |
 | notification-service dead-letters everything with "registered schema" | the producer isn't on Avro yet (old image), or writes to a different registry |
+| a service's requests to the registry time out (`SchemaRegistryUnavailableException`, outbox stalls) | it runs in a namespace other than `development`: add it to `network-policies.yaml` |
+| Kafka UI unreachable through its Service from another pod | by design; use `kubectl port-forward` |
 | `KafkaConnector` not Ready, `ClassNotFoundException` | the KafkaConnect runs Strimzi's stock image, not ours (`spec.image` missing in the overlay) |
 | connector failed with `AccessDenied` | the IRSA role's trust names another ServiceAccount, or `enable_events_archive` is off |
 | connector failed with `NoSuchBucket` | the overlay's bucket name differs from tf's `events_archive_bucket_name` |
