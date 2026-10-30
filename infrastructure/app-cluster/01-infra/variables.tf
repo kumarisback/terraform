@@ -318,3 +318,17 @@ variable "events_archive_retention_days" {
     error_message = "events_archive_retention_days must be at least 7: the archive should outlive the topics' own retention."
   }
 }
+
+# --- Amazon MSK Serverless (msk.tf), off by default ---
+
+variable "enable_msk" {
+  description = "Create an MSK Serverless cluster (IAM authentication) and the IRSA roles the services and the topics Job use with it. About $0.75 an hour while it exists, plus partitions and traffic: turn it on for an exercise and off the same day (gitops docs/msk-vs-strimzi.md)."
+  type        = bool
+  default     = false
+}
+
+variable "msk_client_namespace" {
+  description = "Namespace of the services whose IRSA roles may use MSK (gitops apps/<env>/namespace.yaml)."
+  type        = string
+  default     = "development"
+}

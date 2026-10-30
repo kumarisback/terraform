@@ -60,3 +60,12 @@ output "events_archive_bucket_name" {
   description = "The Kafka events archive bucket (null while enable_events_archive is off). gitops streaming/<env>/kustomization.yaml must name the same bucket."
   value       = one(aws_s3_bucket.events_archive[*].bucket)
 }
+
+output "msk_bootstrap_brokers" {
+  description = "MSK Serverless bootstrap servers for IAM sign-in (null while enable_msk is off): the value of kafka.msk.bootstrapServers in gitops."
+  value       = one(module.msk[*].bootstrap_brokers_sasl_iam)
+}
+
+output "msk_cluster_arn" {
+  value = one(module.msk[*].cluster_arn)
+}
