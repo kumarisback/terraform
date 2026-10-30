@@ -36,7 +36,8 @@ is `gitops/docs/KEDA.md`.
 | Where | What |
 |---|---|
 | gitops `addons/applications/keda.yaml` | KEDA 2.21.0 (tested on Kubernetes 1.34–1.36), every environment, server-side apply for its large CRDs; ServiceMonitors for operator and metrics server |
-| gitops `charts/microservice` 0.4.0 | `autoscaling.keda`: a ScaledObject instead of the CPU HPA, `minReplicas: 0` only with it, `fallbackReplicas`, a `TriggerAuthentication` built from the KafkaAccess Secret; `podDisruptionBudget.maxUnavailable`; 6 new tests (31) |
+| gitops `charts/microservice` 0.5.0 | `autoscaling.keda`: a ScaledObject instead of the CPU HPA, `minReplicas: 0` only with it, `fallbackReplicas`; `podDisruptionBudget.maxUnavailable`; 6 new tests (31) |
+| gitops `streaming/keda`, KafkaUser `keda` | KEDA's own Kafka identity (describe only) delivered into its namespace, named by ClusterTriggerAuthentication `kafka-lag-reader`; KEDA may read Secrets only in `keda` |
 | gitops `apps/{local,dev}/notification-service.values.yaml` | Kafka triggers on `orders` and `users`, lag 50 per replica, 0 to 6 (lab 3), fallback 1, PDB max unavailable 1 |
 | gitops `apps/{local,dev}/order-service.values.yaml` | Prometheus trigger (20 requests/s per replica) plus CPU 70%; staging and prod keep the CPU HPA |
 | gitops `observability/base` | `ServiceUnavailable` only while replicas are wanted; `KedaScalerErrors`, `KedaMetricsMissing`; tests |
@@ -46,8 +47,8 @@ is `gitops/docs/KEDA.md`.
 
 ## 3. Real incidents
 
-None of these happened on a cluster; each was found while designing the step, which is where
-they are cheapest.
+None of these happened on a cluster. All but 3.5 were found while designing the step, which
+is where they are cheapest; 3.5 was found by a review after it was pushed.
 
 ### 3.1 The alert that would page for a quiet night
 
@@ -77,7 +78,20 @@ on everything it scrapes (the target's, `keda`) and, as the chart's ServiceMonit
 honour scraped labels, renames KEDA's to `exported_namespace`. An alert grouping by
 `namespace` would have said every problem was in `keda`.
 
-### 3.5 No fallback with a CPU trigger
+### 3.5 An autoscaler that could read every Secret
+
+This one shipped. The first version let KEDA read each service's Kafka certificate from the
+service's namespace, which the KEDA chart allows by granting the operator `list` and `watch`
+on **all** Secrets in the cluster; `list` returns their contents. A security review of the
+pushed commit flagged it: one compromised operator, every database password and signing key.
+The chart's allow-list option doesn't help, as it only adds a `get` rule beside that
+cluster-wide one. Now `permissions.operator.restrict.secret` limits KEDA to its own namespace
+(and KEDA's code then refuses Secrets elsewhere), KEDA gets its own KafkaUser that can describe
+but not read, delivered into `keda` by a KafkaAccess there, and triggers name it through a
+`ClusterTriggerAuthentication`. Least privilege twice over: fewer Secrets, and a weaker
+credential in the one it has.
+
+### 3.6 No fallback with a CPU trigger
 
 KEDA's fallback replaces a failing trigger's metric with one that yields the fallback
 count. It doesn't support CPU or memory triggers (those come from metrics-server, not KEDA),
@@ -107,8 +121,8 @@ kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/namespaces/development/
 |---|---|
 | ScaledObject `READY False`, "error validating" | the admission webhook refused it: a second autoscaler for the same Deployment (an old HPA), or a bad trigger spec |
 | ArgoCD can't sync the ScaledObject | KEDA's CRDs not installed yet (the `keda` application syncs first; retry) |
-| Kafka trigger errors `tls: failed to verify certificate` | the TriggerAuthentication's `ca` isn't the cluster CA (wrong Secret key) |
-| Kafka trigger errors `not authorized` | the service's KafkaUser lacks Describe on its group or topic |
+| Kafka trigger errors `secret not found` / empty credentials | Secret `keda-kafka` missing in `keda` (`kubectl get kafkaaccess -n keda`), or a trigger names a namespaced TriggerAuthentication (KEDA can't read Secrets outside `keda`) |
+| Kafka trigger errors `not authorized` | KafkaUser `keda` lacks Describe on that group or topic (`streaming/base/users.yaml`) |
 | stays at 0 with lag | KEDA can't read the lag (`KedaScalerErrors`), or the trigger names the wrong group/topic |
 | never above 3 (or 6) | by design: partition count, or `maxReplicas` |
 | flaps between 0 and 1 | `cooldownPeriod` too short for the gaps between bursts |
