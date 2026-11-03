@@ -298,7 +298,8 @@ module "networking" {
   single_nat_gateway        = var.single_nat_gateway
 
   # Required for the AWS Load Balancer Controller's subnet auto-discovery
-  # (used by gitops/apps/base/ingress.yaml) — without these tags it fails
+  # (used by the Kong gateway's ALB Ingress, gitops addons/values/cloud/kong.yaml)
+  # — without these tags it fails
   # with "unable to resolve at least one subnet".
   public_subnet_tags = {
     "kubernetes.io/role/elb"                                                   = "1"

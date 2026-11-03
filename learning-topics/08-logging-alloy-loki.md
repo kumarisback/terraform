@@ -71,7 +71,7 @@ Grafana queries both tenants (`X-Scope-OrgID: apps|platform`) and turns `trace_i
 to Tempo.
 
 **Edge log** — Traefik's JSON access log in the lab. In the cloud the ALB writes it to S3
-(annotation documented in `gitops/apps/base/ingress.yaml`; needs a bucket in `tf` first).
+(annotation documented in `gitops/addons/values/cloud/kong.yaml`; needs a bucket in `tf` first).
 
 ---
 

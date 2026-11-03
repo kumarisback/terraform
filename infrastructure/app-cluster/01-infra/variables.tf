@@ -269,7 +269,7 @@ variable "enable_container_insights" {
 }
 
 variable "synthetics_base_url" {
-  description = "The app's public URL for the CloudWatch Synthetics canary, scheme and host only: the ALB's DNS name after the first ArgoCD sync (kubectl get ingress app-ingress -n <namespace>), e.g. http://k8s-microservices-0123456789.us-east-1.elb.amazonaws.com, and https://<domain> once it exists. null: no canary."
+  description = "The app's public URL for the CloudWatch Synthetics canary, scheme and host only: the ALB's DNS name after the first ArgoCD sync (kubectl get ingress kong-gateway-proxy -n kong), e.g. http://k8s-microservices-0123456789.us-east-1.elb.amazonaws.com, and https://<domain> once it exists. null: no canary."
   type        = string
   default     = null
 

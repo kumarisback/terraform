@@ -182,7 +182,7 @@ pipeline {
 
             // Step 1.5: Wait for AWS to actually finish tearing down anything
             // GitOps-managed that gets an ephemeral public IP on an ENI (the
-            // ALB from gitops/apps/base/ingress.yaml, previously also the
+            // ALB from the Kong gateway's Ingress in gitops, previously also the
             // frontend LoadBalancer's ELB). Terraform destroy on Layer 2 only
             // waits for the Kubernetes objects to delete, not for the AWS-side
             // cleanup those deletions trigger — that's asynchronous and can
