@@ -53,7 +53,7 @@ streaming.tf`) and an ECR repository. The user guide is `gitops/docs/KAFKA.md`, 
 | tf `01-infra/streaming.tf` | `enable_events_archive` (on in `dev.tfvars`): bucket (no public access, SSE, HTTPS only, 365-day expiry, no storage-class transitions), IRSA role `kafka_connect` for SA `kafka/events-connect-connect` allowed only `s3:PutObject`, `s3:AbortMultipartUpload` |
 | tf `shared-services` | ECR repository `kafka-connect` |
 | gitops `addons/streaming/kafka-ui.yaml`, `streaming/tools/avro-console.yaml` | Read-only Kafka UI (kafbat) with Avro decoding; a pod with the Avro console tools to read and replay events |
-| gitops `streaming/base/network-policies.yaml`; tf `01-infra` `aws_eks_addon.vpc_cni` | Kafka UI reachable only by port-forward; the registry's API only from the services and its tools; NetworkPolicy enforcement on EKS (`enable_network_policy`, on in dev) |
+| gitops `streaming/base/network-policies.yaml`; tf `01-infra` `aws_eks_addon.vpc_cni` | Kafka UI reachable only by port-forward; the registry's API only from the services and its tools; NetworkPolicy enforcement on EKS (`enable_network_policy`, on in dev; every environment since step 19) |
 | gitops `kafka-alerts.yaml` | `OutboxPublishingStalled`, `OutboxBacklogGrowing`, `KafkaConnectConnectorFailed`, `KafkaConnectTaskFailed`, all unit-tested |
 
 Why these choices: **Apicurio** rather than Confluent Schema Registry because it is Apache

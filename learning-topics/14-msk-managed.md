@@ -34,7 +34,7 @@ repo the login module. The comparison and the switch-over steps are
 
 | Where | What |
 |---|---|
-| `modules/msk` | `aws_msk_serverless_cluster` with IAM authentication, endpoints in the private app subnets, a security group allowing only 9098/tcp from the pod subnets and no egress; outputs bootstrap servers and the topic and group ARN prefixes |
+| `modules/msk` | `aws_msk_serverless_cluster` with IAM authentication, endpoints in the private app subnets, a security group allowing only 9098/tcp from the EKS cluster security group (the pod subnets until step 19) and no egress; outputs bootstrap servers and the topic and group ARN prefixes |
 | `modules/msk/tests/msk.tftest.hcl` | `terraform test` with a mocked AWS provider: IAM on, ARN prefixes, the single ingress rule, at least two subnets |
 | `01-infra/msk.tf`, `enable_msk` (off), `msk_client_namespace` | The module, and IRSA roles `msk_order_service`, `msk_user_service`, `msk_notification_service` (each its own topics and group, as its `KafkaUser` on Strimzi) and `msk_admin` (topics only, namespace `msk-admin`) |
 | outputs `msk_bootstrap_brokers`, `msk_cluster_arn` | What gitops needs to switch over |
@@ -108,7 +108,7 @@ aws cloudwatch list-metrics --namespace AWS/Kafka --dimensions Name=Cluster\ Nam
 | `SaslAuthenticationException: Access denied` | the pod has no IRSA role (annotation missing, or the chart refused to render it) or the role's trust names another ServiceAccount/namespace (`msk_client_namespace`) |
 | `TopicAuthorizationException` | the role lacks the action on that topic ARN (`msk.tf`), or the topic name differs |
 | `ClassNotFoundException: software.amazon.msk.auth.iam.IAMClientCallbackHandler` | an image built before the login module was added |
-| connection timeouts to `*.kafka-serverless.*:9098` | the security group: the pod's address isn't in `client_cidr_blocks` |
+| connection timeouts to `*.kafka-serverless.*:9098` | the security group: the node isn't in a group in `client_security_group_ids` (nodes launched without the EKS cluster security group), or the pod's NetworkPolicy (gitops `apps/components/kafka-msk`) |
 | the topics Job fails with `InvalidConfigurationException` | a setting MSK Serverless doesn't allow (only six topic settings are configurable) |
 | no consumer lag in CloudWatch | the group is rebalancing or has never committed an offset; lag appears for stable groups |
 

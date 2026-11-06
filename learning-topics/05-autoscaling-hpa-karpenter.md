@@ -147,8 +147,10 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=karpenter
 kubectl get ec2nodeclass default -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
 
 # Generate load and watch both axes
-kubectl run load -n development --rm -it --image=busybox -- \
-  /bin/sh -c "while true; do wget -q -O- http://frontend; done"
+# Through Kong, as real traffic comes: since steps 18-19 a pod of your own in the
+# application namespace may not call the services.
+kubectl run load -n default --rm -it --image=busybox:1.37 -- \
+  /bin/sh -c "while true; do wget -q -O- http://kong-gateway-proxy.kong/; done"
 kubectl get hpa -n development -w          # replicas climb
 kubectl get nodeclaims -w                  # Karpenter launches a node in < 60s
 kubectl get nodes -L karpenter.sh/capacity-type,node.kubernetes.io/instance-type
