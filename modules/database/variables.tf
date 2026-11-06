@@ -13,9 +13,14 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "vpc_cidr" {
-  description = "VPC CIDR block for security group rules"
-  type        = string
+variable "client_security_group_ids" {
+  description = "Security groups whose members may connect (the EKS cluster security group, which the nodes and their pods carry)"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.client_security_group_ids) > 0
+    error_message = "Name at least one client security group: with none, nothing could connect."
+  }
 }
 
 variable "private_data_subnet_ids" {

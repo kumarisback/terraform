@@ -255,9 +255,9 @@ variable "eks_addon_versions" {
 }
 
 variable "enable_network_policy" {
-  description = "Run the VPC CNI as a managed EKS add-on with NetworkPolicy enforcement on (main.tf). Off, NetworkPolicies in gitops are accepted but ignored. Roadmap step 19 turns it on in every environment."
+  description = "Run the VPC CNI as a managed EKS add-on with NetworkPolicy enforcement on (main.tf). gitops denies by default in the application and kong namespaces (roadmap step 19, docs/NETWORK-POLICIES.md); off, every NetworkPolicy is accepted but ignored."
   type        = bool
-  default     = false
+  default     = true
 }
 
 # --- AWS-managed monitoring (observability.tf), off by default ---

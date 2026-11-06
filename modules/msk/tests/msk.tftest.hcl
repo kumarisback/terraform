@@ -17,11 +17,11 @@ mock_provider "aws" {
 }
 
 variables {
-  name               = "microservices"
-  environment        = "dev"
-  vpc_id             = "vpc-0123456789abcdef0"
-  subnet_ids         = ["subnet-0aaaaaaaaaaaaaaaa", "subnet-0bbbbbbbbbbbbbbbb"]
-  client_cidr_blocks = ["10.0.11.0/24", "10.0.12.0/24"]
+  name                      = "microservices"
+  environment               = "dev"
+  vpc_id                    = "vpc-0123456789abcdef0"
+  subnet_ids                = ["subnet-0aaaaaaaaaaaaaaaa", "subnet-0bbbbbbbbbbbbbbbb"]
+  client_security_group_ids = ["sg-0123456789abcdef0"]
 }
 
 run "iam_only_and_policy_names" {
@@ -48,17 +48,28 @@ run "iam_only_and_policy_names" {
   }
 }
 
-run "only_kafka_with_iam_from_the_pod_subnets" {
+run "only_kafka_with_iam_from_the_cluster" {
   command = plan
 
   assert {
     condition = length(aws_security_group.msk.ingress) == 1 && alltrue([
       for rule in aws_security_group.msk.ingress :
       rule.from_port == 9098 && rule.to_port == 9098 && rule.protocol == "tcp" &&
-      toset(rule.cidr_blocks) == toset(var.client_cidr_blocks)
+      toset(rule.security_groups) == toset(var.client_security_group_ids) &&
+      try(length(rule.cidr_blocks), 0) == 0
     ])
-    error_message = "The only way in is 9098/tcp from the client CIDR blocks."
+    error_message = "The only way in is 9098/tcp from the client security groups, no address ranges."
   }
+}
+
+run "refuses_no_clients" {
+  command = plan
+
+  variables {
+    client_security_group_ids = []
+  }
+
+  expect_failures = [var.client_security_group_ids]
 }
 
 run "refuses_a_single_subnet" {

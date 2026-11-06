@@ -565,8 +565,8 @@ moved {
 # EKS installs the VPC CNI (pod networking) on its own, unmanaged and with
 # NetworkPolicy enforcement off: policies in gitops are then accepted and
 # ignored. Managed, with enableNetworkPolicy, its node agent enforces them.
-# Only pods a policy selects are affected; roadmap step 19 adds a default
-# deny per namespace and turns this on everywhere.
+# On in every environment since roadmap step 19: gitops denies by default
+# in the application and kong namespaces (docs/NETWORK-POLICIES.md).
 #
 # Taking over the existing installation restarts the aws-node pods once;
 # running pods keep their network. preserve: if this resource is ever
@@ -657,7 +657,7 @@ module "database" {
   name                            = var.project_name
   environment                     = var.environment
   vpc_id                          = module.networking.vpc_id
-  vpc_cidr                        = var.vpc_cidr
+  client_security_group_ids       = [module.eks.cluster_security_group_id]
   private_data_subnet_ids         = module.networking.private_data_subnet_ids
   enable_rds                      = var.enable_rds
   enable_elasticache              = var.enable_elasticache

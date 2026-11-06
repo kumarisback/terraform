@@ -23,7 +23,12 @@ variable "subnet_ids" {
   }
 }
 
-variable "client_cidr_blocks" {
-  description = "CIDR blocks allowed to connect (port 9098): the subnets the pods get their addresses from"
+variable "client_security_group_ids" {
+  description = "Security groups allowed to connect (port 9098): the EKS cluster security group, which the nodes and their pods carry"
   type        = list(string)
+
+  validation {
+    condition     = length(var.client_security_group_ids) > 0
+    error_message = "Name at least one client security group: with none, nothing could connect."
+  }
 }

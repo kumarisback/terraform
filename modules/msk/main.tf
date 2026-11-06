@@ -17,19 +17,20 @@ locals {
 }
 
 # Clients reach the cluster's endpoints, which MSK places in the subnets
-# below, on 9098 from the pod subnets. MSK never opens connections itself,
-# so no egress.
+# below, on 9098 from the given security groups (the EKS cluster's, which
+# the nodes and so the pods carry; learning topic 19). MSK never opens
+# connections itself, so no egress.
 resource "aws_security_group" "msk" {
   name        = "${var.name}-${var.environment}-msk-sg"
   description = "Kafka clients (SASL/IAM over TLS) to MSK Serverless"
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "Kafka, IAM authentication"
-    from_port   = 9098
-    to_port     = 9098
-    protocol    = "tcp"
-    cidr_blocks = var.client_cidr_blocks
+    description     = "Kafka, IAM authentication"
+    from_port       = 9098
+    to_port         = 9098
+    protocol        = "tcp"
+    security_groups = var.client_security_group_ids
   }
 
   tags = merge(local.common_tags, {

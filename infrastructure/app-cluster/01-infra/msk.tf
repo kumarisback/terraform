@@ -13,11 +13,11 @@ module "msk" {
   source = "../../../modules/msk"
   count  = var.enable_msk ? 1 : 0
 
-  name               = var.project_name
-  environment        = var.environment
-  vpc_id             = module.networking.vpc_id
-  subnet_ids         = module.networking.private_app_subnet_ids
-  client_cidr_blocks = var.private_app_subnet_cidrs
+  name                      = var.project_name
+  environment               = var.environment
+  vpc_id                    = module.networking.vpc_id
+  subnet_ids                = module.networking.private_app_subnet_ids
+  client_security_group_ids = [module.eks.cluster_security_group_id]
 }
 
 locals {

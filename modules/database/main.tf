@@ -4,7 +4,19 @@ locals {
     ManagedBy   = "Terraform"
     Project     = var.name
   }
+
+  # The engine's own port, nothing else.
+  rds_port = strcontains(var.rds_engine, "postgres") ? 5432 : 3306
 }
+
+# Who may connect: the security groups given (the EKS cluster's, which the
+# nodes and so every pod carry), not every address in the VPC. Learning
+# topic 19. No egress rules: a database answers connections, it doesn't
+# open any, and security groups let the answers out on their own.
+#
+# The descriptions still say "from within the VPC": a group's description
+# can't change without replacing the group, and a running database holds on
+# to its group, so the replacement would fail. The rules are what count.
 
 # Security Group for RDS
 resource "aws_security_group" "rds" {
@@ -14,26 +26,11 @@ resource "aws_security_group" "rds" {
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "PostgreSQL access from VPC"
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  ingress {
-    description = "MySQL access from VPC"
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description     = "${var.rds_engine} from the client security groups"
+    from_port       = local.rds_port
+    to_port         = local.rds_port
+    protocol        = "tcp"
+    security_groups = var.client_security_group_ids
   }
 
   tags = merge(local.common_tags, {
@@ -49,18 +46,11 @@ resource "aws_security_group" "redis" {
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "Redis access from VPC"
-    from_port   = 6379
-    to_port     = 6379
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description     = "Redis from the client security groups"
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = var.client_security_group_ids
   }
 
   tags = merge(local.common_tags, {
