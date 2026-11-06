@@ -120,12 +120,12 @@ cd tf/modules/msk && terraform init && terraform test
 
 # Lab or dev
 kubectl get networkpolicy -n development
-kubectl exec -n development deploy/frontend -- wget -T 3 -qO- http://user-service/api/auth/jwks.json   # fails after a wait
+kubectl exec -n development svc/frontend -- wget -T 3 -qO- http://user-service/api/auth/jwks.json   # fails after a wait
 kubectl exec -n development deploy/user-service -- wget -qO- http://order-service/api/orders/status    # 403: the network allows, the mesh refuses
 curl -s localhost/api/orders/status                                                                     # through Kong: fine
 
 # dev only
-kubectl exec -n development deploy/order-service -- wget -T 3 -qO- http://169.254.169.254/   # fails after a wait
+kubectl exec -n development svc/order-service -- wget -T 3 -qO- http://169.254.169.254/   # fails after a wait
 kubectl get policyendpoints -n development                                                  # one per policy: the agent has them
 aws ec2 describe-security-groups --group-ids <redis-sg> --query 'SecurityGroups[0].IpPermissions'   # a UserIdGroupPair, no IpRanges
 ```

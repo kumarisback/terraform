@@ -134,8 +134,8 @@ cd gitops && ./scripts/validate.sh       # Istio in every env, mesh objects agai
 # Lab or dev
 kubectl get pods -n istio-system
 kubectl get gateway waypoint -n development
-kubectl exec -n development deploy/order-service -- wget -qO- http://user-service/api/auth/jwks.json   # allowed
-kubectl exec -n development deploy/order-service -- wget -qO- http://user-service/api/tasks           # 403 RBAC: access denied
+kubectl exec -n development svc/order-service -- wget -qO- http://user-service/api/auth/jwks.json   # allowed
+kubectl exec -n development svc/order-service -- wget -qO- http://user-service/api/tasks           # 403 RBAC: access denied
 curl -s localhost/api/orders/status                                      # through Kong and the waypoint: fine
 ```
 

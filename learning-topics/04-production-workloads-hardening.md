@@ -274,7 +274,7 @@ kubectl delete pod "$POD" -n development
 aws secretsmanager update-secret --secret-id microservices/dev/app-config --region us-east-1 \
   --secret-string '<MONGO_URI pointed at something unreachable>'
 kubectl annotate externalsecret app-secrets -n development force-sync="$(date +%s)" --overwrite
-kubectl rollout restart deployment/order-service -n development
+kubectl argo rollouts restart order-service -n development   # a Rollout since step 20; a Deployment before
 kubectl get endpoints order-service -n development -w    # expect: pod drops out
 kubectl get pods -n development -l app=order-service -w  # expect: restarts stay at 0
 # then restore the real secret value and force-sync + rollout restart again

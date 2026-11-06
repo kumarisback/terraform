@@ -95,7 +95,7 @@ cd app/order-service && ./gradlew test --tests '*MskIamSettingsTest'
 # With MSK on (docs/msk-vs-strimzi.md, "Try it")
 terraform output msk_bootstrap_brokers
 kubectl logs -n msk-admin job/msk-topics       # the four topics, replication 3
-kubectl logs -n development deploy/order-service | grep -i 'sasl\|msk'   # no authentication errors
+kubectl logs -n development -l app=order-service | grep -i 'sasl\|msk'   # no authentication errors
 aws cloudwatch list-metrics --namespace AWS/Kafka --dimensions Name=Cluster\ Name,Value=microservices-dev-events
 ```
 
