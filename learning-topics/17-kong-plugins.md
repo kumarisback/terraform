@@ -37,7 +37,7 @@ Roadmap step `17-kong-plugins`. Mostly gitops (`platform/kong`, `apps/base/kong.
 | gitops `platform/kong/plugins.yaml` | `KongClusterPlugin`s: prometheus (`per_consumer`) and security-headers, both global; `auth-attempts` (10/min/IP), `partner-tier-basic` (60/min, 1,000/h) and `-premium` (600/min, 20,000/h), all `policy: redis`, `fault_tolerant`, password by `configPatches` from Secret `kong-redis`; `maintenance` (request-termination 503), attached nowhere |
 | gitops `platform/kong/redis.yaml` | Valkey 8.1 (in memory, `--requirepass`, 64 MB, non-root, read-only root), NetworkPolicy: gateways only |
 | gitops `apps/base/kong.yaml` | `user-tokens` (jwt: `iss` → consumer, `exp` verified, `maximum_expiration` 24 h, header only), `partner-keys` (key-auth, header only, `hide_credentials`), `partner-api-v1` (request-transformer); consumers `user-service-tokens`, `partner-basic`, `partner-premium` |
-| gitops `apps/base/routes.yaml` | Routes split so each check applies only where it should: `user-service-auth` (Exact sign-in/up), `order-service-status` (open), `order-service` (tokens), `order-service-partner` (keys) |
+| gitops `apps/base/routes.yaml` | Routes split so each check applies only where it should: `user-service-auth` (the `/api/auth` prefix), `order-service-status` (open), `order-service` (tokens), `order-service-partner` (keys) |
 | gitops `platform/kong-redis-password.yaml`, `apps/<env>/kong-credentials.yaml` | External Secrets' Password generator for the Valkey password and the partner keys (generated once, in the cluster); `user-service-jwt` from Secrets Manager, labelled as a Kong `jwt` credential |
 | gitops `scripts/start-lab.sh` | The same three in the lab, once, into git-ignored files |
 | this repo `01-infra` `out_of_band["jwt-public-key"]`, `scripts/set-secret.sh` | The public key next to the signing key; `jwt-public-key` mode derives it without rotating |
@@ -96,6 +96,19 @@ headers, so the transformer was left out; the lesson is that plugin order comes 
 priorities, not from the order you write them in.
 
 ---
+
+### 3.7 Two spellings of one path
+
+This one shipped. The sign-in limit matched `/api/auth/signin` and `/api/auth/signup`
+*exactly*; a security review of the pushed commit pointed out that `/api/auth/signin/` or
+`/api/auth/signin;x=1` would match the broader `/api` route instead, which has no limit, and
+that the limit is only as good as the backend's agreement on what counts as the sign-in path.
+Checked rather than assumed: user-service's test now sends those spellings through its real
+security filter chain (`AuthPathVariantsTest`): Spring Security's firewall refuses any path
+parameter with 400, and a trailing slash is a different path (404). The route now limits the
+whole `/api/auth` prefix, so even the trailing-slash spelling is counted. Lesson: when a
+gateway and a backend both parse a URL, a security decision needs them to agree, and a test
+on the backend's side is what keeps them agreeing.
 
 ## 4. Verify — the full sequence
 
