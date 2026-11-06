@@ -94,14 +94,35 @@ guessed.
 A principal names the namespace (`cluster.local/ns/development/sa/user-service`), but
 `apps/base` serves development, staging and production. Policies write callers in the same
 namespace as `*/sa/user-service`. That matches any namespace's `user-service` account; it's
-exact here only because each environment is its own cluster with one application namespace.
-Several application namespaces per cluster would need the full principals per overlay.
+exact here only because each environment is its own cluster with one application namespace,
+and only while nobody creates a ServiceAccount of that name elsewhere: 3.8 says how it is bound
+to the namespace now.
 
 ### 3.7 Exercises that would have broken
 
 The KEDA guide's load test ran a pod inside the application namespace and called order-service
 directly. In the mesh that pod has an identity no policy names: 403. It now runs outside and
 goes through Kong, as real traffic does.
+
+### 3.8 What a review of the pushed mesh found
+
+These shipped, and a security review of the commit caught them:
+
+- **Prometheus could call the APIs.** The layer-4 rule let Prometheus's identity open
+  connections to the pods on any port, the API's included, without passing the waypoint's
+  rules. Restricting it to the metrics port wasn't possible: actuator shared port 8080 (and the
+  `/api` path) with the API, which also meant the gateway exposed health and metrics to
+  anyone. The services now serve actuator on `management.server.port` 8081 (tested in the
+  app repo: 404 on the API port), and Prometheus may reach only 8081.
+- **`*/sa/user-service` matched any namespace.** Callers in the app namespace now carry
+  `namespaces: [development]` as well, which each overlay replaces with its own namespace (a
+  Kustomize replacement on policies labelled `same-namespace-callers`); the lab's MongoDB
+  policy names full principals.
+- **The tunnel bypassed the NetworkPolicy.** Kong's NetworkPolicy allowed Prometheus on 15008,
+  and inside that tunnel ztunnel delivers to any port, the admin API's included. An Istio
+  `DENY` on the gateways refuses every mesh identity on port 8444. Lesson: with a mesh, a
+  NetworkPolicy sees the tunnel, not the destination port; port rules for meshed traffic
+  belong in the mesh's policies.
 
 ---
 
