@@ -53,3 +53,8 @@ enable_container_insights = false
 # S3 bucket and the role Kafka Connect writes to it with. On in dev, where
 # gitops streaming/dev runs the connector. Costs cents: a few MB a month.
 enable_events_archive = true
+
+# Argo Workflows' artifact bucket and roles, and the queue announcing new
+# archive files (01-infra workflows.tf, learning topic 21). On in dev, where
+# gitops runs addons/automation. Costs cents.
+enable_argo_workflows = true

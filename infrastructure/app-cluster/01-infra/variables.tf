@@ -308,6 +308,18 @@ variable "enable_events_archive" {
   default     = false
 }
 
+variable "enable_argo_workflows" {
+  description = "Create what Argo Workflows and Argo Events need in AWS (workflows.tf): the artifact bucket and the workflows' IRSA roles, and with enable_events_archive the SQS queue announcing new archive files. Turn it on together with gitops addons/automation in the environment's bootstrap."
+  type        = bool
+  default     = false
+}
+
+variable "ci_push_repositories" {
+  description = "ECR repositories (tf shared-services) the CI workflow's role may push to."
+  type        = list(string)
+  default     = ["order-service", "user-service", "notification-service"]
+}
+
 variable "events_archive_retention_days" {
   description = "Days the events archive keeps each file. Kafka itself keeps the topics for 7 days (gitops streaming/base/topics.yaml)."
   type        = number

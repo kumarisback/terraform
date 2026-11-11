@@ -61,6 +61,16 @@ output "events_archive_bucket_name" {
   value       = one(aws_s3_bucket.events_archive[*].bucket)
 }
 
+output "workflow_artifacts_bucket" {
+  description = "Argo Workflows' artifact bucket (null while enable_argo_workflows is off): gitops addons/values/<env>/argo-workflows.yaml must name the same bucket."
+  value       = one(aws_s3_bucket.workflow_artifacts[*].bucket)
+}
+
+output "archive_uploads_queue" {
+  description = "The SQS queue announcing new events archive files (null unless enable_argo_workflows and enable_events_archive): gitops automation/<env>/archive-check.yaml must name the same queue."
+  value       = one(aws_sqs_queue.archive_uploads[*].name)
+}
+
 output "msk_bootstrap_brokers" {
   description = "MSK Serverless bootstrap servers for IAM sign-in (null while enable_msk is off): the value of kafka.msk.bootstrapServers in gitops."
   value       = one(module.msk[*].bootstrap_brokers_sasl_iam)
