@@ -344,9 +344,15 @@ module "eks" {
         Version = "2012-10-17"
         Statement = [
           {
-            Effect   = "Allow"
-            Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-            Resource = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*"
+            Effect = "Allow"
+            Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+            # This project's secrets, and with RDS on, the master user's
+            # secret RDS keeps and rotates (named rds!db-..., roadmap step 23):
+            # that one secret, not every RDS secret in the account.
+            Resource = concat(
+              ["arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*"],
+              var.enable_rds && var.rds_manage_master_user_password ? [module.database.rds_master_secret_arn] : []
+            )
           }
         ]
       })
@@ -503,7 +509,7 @@ module "eks" {
       service_account = "efs-csi-controller-sa"
       policy_arns     = ["arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"]
     }
-  }, local.container_insights_irsa_roles, local.events_archive_irsa_roles, local.msk_irsa_roles, local.workflows_irsa_roles)
+  }, local.container_insights_irsa_roles, local.grafana_irsa_roles, local.events_archive_irsa_roles, local.msk_irsa_roles, local.workflows_irsa_roles)
 }
 
 # ---------------------------------------------------------
@@ -652,15 +658,41 @@ resource "aws_efs_mount_target" "shared" {
   security_groups = [aws_security_group.efs.id]
 }
 
+# Where the database's CloudWatch alarms go (modules/database). Not
+# KMS-encrypted, for the reason given at synthetics_alarms (observability.tf).
+resource "aws_sns_topic" "database_alarms" {
+  count = var.enable_rds ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-database-alarms"
+
+  tags = local.common_tags
+}
+
+resource "aws_sns_topic_subscription" "database_alarm_email" {
+  count = var.enable_rds && var.database_alarm_email != null ? 1 : 0
+
+  topic_arn = aws_sns_topic.database_alarms[0].arn
+  protocol  = "email"
+  endpoint  = var.database_alarm_email
+}
+
 module "database" {
   source = "../../../modules/database"
 
-  name                            = var.project_name
-  environment                     = var.environment
-  vpc_id                          = module.networking.vpc_id
-  client_security_group_ids       = [module.eks.cluster_security_group_id]
-  private_data_subnet_ids         = module.networking.private_data_subnet_ids
-  enable_rds                      = var.enable_rds
+  name                      = var.project_name
+  environment               = var.environment
+  vpc_id                    = module.networking.vpc_id
+  client_security_group_ids = [module.eks.cluster_security_group_id]
+  private_data_subnet_ids   = module.networking.private_data_subnet_ids
+  enable_rds                = var.enable_rds
+  # PostgreSQL for Unleash, the feature flag service (roadmap steps 22-23,
+  # gitops feature-flags/components/rds): it signs in as the master user.
+  rds_db_name                     = "unleash"
+  rds_username                    = "unleash"
+  rds_multi_az                    = var.rds_multi_az
+  rds_read_replica                = var.rds_read_replica
+  rds_proxy                       = var.rds_proxy
+  alarm_actions                   = aws_sns_topic.database_alarms[*].arn
   enable_elasticache              = var.enable_elasticache
   redis_node_type                 = var.redis_node_type
   rds_manage_master_user_password = var.rds_manage_master_user_password

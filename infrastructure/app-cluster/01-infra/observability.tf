@@ -297,3 +297,41 @@ resource "aws_cloudwatch_metric_alarm" "canary_failing" {
 
   tags = local.common_tags
 }
+
+# --- Grafana reads CloudWatch ------------------------------------------------
+# AWS's managed services (RDS above all, roadmap step 23) publish their
+# metrics to CloudWatch, not Prometheus. Grafana's CloudWatch data source
+# (gitops addons/values/<env>/kube-prometheus-stack.yaml) reads them with
+# this role: metrics and alarms, read-only. Free while unused; CloudWatch
+# bills the API calls a dashboard makes (GetMetricData, per metric).
+locals {
+  grafana_irsa_roles = {
+    grafana_cloudwatch = {
+      namespace       = "monitoring"
+      service_account = "kube-prometheus-stack-grafana"
+      inline_policy_json = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+          {
+            Effect = "Allow"
+            Action = [
+              "cloudwatch:DescribeAlarmsForMetric",
+              "cloudwatch:DescribeAlarmHistory",
+              "cloudwatch:DescribeAlarms",
+              "cloudwatch:ListMetrics",
+              "cloudwatch:GetMetricData",
+              "cloudwatch:GetInsightRuleReport",
+            ]
+            Resource = "*"
+          },
+          {
+            # Resource names and tags, for the dashboards' drop-downs.
+            Effect   = "Allow"
+            Action   = ["tag:GetResources", "ec2:DescribeRegions"]
+            Resource = "*"
+          }
+        ]
+      })
+    }
+  }
+}

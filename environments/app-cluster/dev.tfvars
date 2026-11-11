@@ -58,3 +58,17 @@ enable_events_archive = true
 # archive files (01-infra workflows.tf, learning topic 21). On in dev, where
 # gitops runs addons/automation. Costs cents.
 enable_argo_workflows = true
+
+# PostgreSQL on RDS for Unleash, the feature flag service (modules/database,
+# roadmap step 23, learning topic 23). Off: Multi-AZ db.t4g.micro is about
+# $25 a month, a replica or RDS Proxy more. For the step's exercises turn it
+# on, then switch gitops feature-flags/dev to it (docs/DATABASE.md). A dev
+# instance you mean to destroy afterwards: no deletion protection, a final
+# snapshot named here.
+# enable_rds                    = true
+# rds_deletion_protection       = false
+# rds_final_snapshot_identifier = "microservices-dev-rds-final"
+# rds_apply_immediately         = true
+# rds_read_replica              = true   # the replica-lag exercise
+# rds_proxy                     = true   # the connection-pooling exercise
+# database_alarm_email          = "you@example.com"

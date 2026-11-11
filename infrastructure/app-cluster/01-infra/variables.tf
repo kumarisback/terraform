@@ -105,9 +105,33 @@ variable "node_instance_type" {
 }
 
 variable "enable_rds" {
-  description = "Enable RDS database"
+  description = "Create the RDS PostgreSQL (modules/database, roadmap step 23) that Unleash can use instead of its in-cluster PostgreSQL (gitops feature-flags/components/rds). About $25 a month in dev with Multi-AZ; turn it on to learn, off after."
   type        = bool
   default     = false
+}
+
+variable "rds_multi_az" {
+  description = "A synchronous standby in another zone (automatic failover). Doubles the instance's cost."
+  type        = bool
+  default     = true
+}
+
+variable "rds_read_replica" {
+  description = "A read replica as well, for the failover and replica-lag exercises (learning topic 23). Another instance's cost."
+  type        = bool
+  default     = false
+}
+
+variable "rds_proxy" {
+  description = "RDS Proxy in front of the instance, for the connection-pooling exercise (learning topic 23). Billed per vCPU of the instance (at least 2) while on."
+  type        = bool
+  default     = false
+}
+
+variable "database_alarm_email" {
+  description = "Address subscribed to the database alarms' SNS topic (confirm the email AWS sends). Null: the alarms show in CloudWatch only."
+  type        = string
+  default     = null
 }
 
 variable "enable_elasticache" {

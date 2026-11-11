@@ -48,21 +48,26 @@ variable "redis_node_type" {
 
 
 variable "rds_engine" {
-  description = "RDS engine"
+  description = "RDS engine: PostgreSQL only (its parameter group and port, roadmap step 23)"
   type        = string
-  default     = "mysql"
+  default     = "postgres"
+
+  validation {
+    condition     = var.rds_engine == "postgres"
+    error_message = "The module sets up PostgreSQL only (parameter group, port, log exports)."
+  }
 }
 
 variable "rds_engine_version" {
-  description = "RDS engine version"
+  description = "PostgreSQL major version; RDS picks the newest minor and upgrades minors on its own"
   type        = string
-  default     = "8.0"
+  default     = "17"
 }
 
 variable "rds_instance_class" {
   description = "RDS instance class"
   type        = string
-  default     = "db.t3.micro"
+  default     = "db.t4g.micro"
 }
 
 variable "rds_allocated_storage" {
@@ -128,6 +133,60 @@ variable "rds_deletion_protection" {
 
 variable "rds_apply_immediately" {
   description = "Whether RDS modifications are applied immediately."
+  type        = bool
+  default     = false
+}
+
+variable "rds_multi_az" {
+  description = "A synchronous standby in another availability zone, failed over to automatically. Doubles the instance's cost."
+  type        = bool
+  default     = true
+}
+
+variable "rds_max_allocated_storage" {
+  description = "Storage autoscaling's ceiling in GiB (allocated_storage is the start)"
+  type        = number
+  default     = 100
+}
+
+variable "rds_ca_cert_identifier" {
+  description = "CA of the server certificate; clients verify against AWS's bundle"
+  type        = string
+  default     = "rds-ca-rsa2048-g1"
+}
+
+variable "rds_performance_insights_enabled" {
+  description = "Database Insights (Performance Insights), standard mode: 7 days kept, free"
+  type        = bool
+  default     = true
+}
+
+variable "rds_monitoring_interval" {
+  description = "Enhanced Monitoring interval in seconds (0 turns it off)"
+  type        = number
+  default     = 60
+}
+
+variable "rds_read_replica" {
+  description = "Create a read replica too (asynchronous, readable; another instance's cost)"
+  type        = bool
+  default     = false
+}
+
+variable "rds_connections_alarm_threshold" {
+  description = "Alarm when connections pass this (db.t4g.micro allows about 80: max_connections is memory / 9531392)"
+  type        = number
+  default     = 60
+}
+
+variable "alarm_actions" {
+  description = "Where the RDS alarms notify (SNS topic ARNs); none: they only show in CloudWatch"
+  type        = list(string)
+  default     = []
+}
+
+variable "rds_proxy" {
+  description = "Put RDS Proxy in front of the instance (connection pooling; billed per vCPU of the instance, at least 2)"
   type        = bool
   default     = false
 }

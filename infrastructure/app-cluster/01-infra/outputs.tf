@@ -79,3 +79,23 @@ output "msk_bootstrap_brokers" {
 output "msk_cluster_arn" {
   value = one(module.msk[*].cluster_arn)
 }
+
+output "rds_address" {
+  description = "RDS PostgreSQL's host name (null while enable_rds is off): gitops feature-flags/<env>'s ConfigMap unleash-rds, key host."
+  value       = module.database.rds_address
+}
+
+output "rds_master_secret_arn" {
+  description = "The secret RDS keeps the master user's credentials in and rotates: gitops feature-flags/<env>'s ConfigMap unleash-rds, key secret-arn."
+  value       = module.database.rds_master_secret_arn
+}
+
+output "rds_proxy_address" {
+  description = "RDS Proxy's host name (null unless rds_proxy is on): use it as key host in gitops feature-flags/<env>'s ConfigMap unleash-rds instead of rds_address."
+  value       = module.database.rds_proxy_address
+}
+
+output "vpc_cidr_block" {
+  description = "The VPC's address range: gitops feature-flags/<env>'s ConfigMap unleash-rds, key vpc-cidr (where Unleash's NetworkPolicy lets it reach RDS)."
+  value       = module.networking.vpc_cidr_block
+}
