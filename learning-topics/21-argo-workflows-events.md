@@ -121,6 +121,17 @@ Argo version adds. One more catch on the way: Kustomize stamped the overlay's na
 the cluster-scoped policy; the repo's scope check refused it (as for KEDA in step 15), and
 the objects now name their namespace themselves.
 
+### 3.9 And the third
+
+The policy checked a Workflow's spec, not its status. Argo keeps the spec of the template a
+workflow runs in its status (`storedWorkflowTemplateSpec`) and runs from that copy: a
+Workflow created with a forged one would have run whatever it said. The policy now refuses
+any status field on creation and any change to the status by anyone but the controller
+(generated per field from the CRD, like the spec), and the controller runs in `Secure` mode,
+which errors out a run whose stored copy no longer matches its template. The price: a person
+can't retry a failed workflow in place (retry rewrites its status); `argo resubmit` starts a
+new run instead.
+
 ---
 
 ## 4. Verify — the full sequence
