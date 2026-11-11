@@ -105,6 +105,22 @@ A security review of the commit found three things, all fixed:
   workflows now write under their own prefix, each role may use only its own, and nobody
   deletes (the bucket's lifecycle does).
 
+### 3.8 What the second review found
+
+The first fix leaned on the controller's `templateReferencing: Strict`. A second review
+pointed out what it doesn't do: a Workflow that references a template may still override its
+fields, `serviceAccountName` and `podSpecPatch` included, so the archive check's or the CI's
+account was still a submission away; and a parameter's `enum` lives in the template, so
+something that doesn't check it isn't bound by it. Now a ValidatingAdmissionPolicy (built into
+Kubernetes since 1.30) refuses any Workflow in `workflows` that sets anything but the
+template's name and its parameters' values, and any change to a running one but stopping or
+suspending it; the CI's repository is a constant in the template. The policy is generated
+from the Workflow CRD, one `has()` per field: with a full CRD the spec is a typed object,
+which CEL can't iterate, and a hand-written list would silently let through a field the next
+Argo version adds. One more catch on the way: Kustomize stamped the overlay's namespace on
+the cluster-scoped policy; the repo's scope check refused it (as for KEDA in step 15), and
+the objects now name their namespace themselves.
+
 ---
 
 ## 4. Verify — the full sequence
