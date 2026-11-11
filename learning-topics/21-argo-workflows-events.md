@@ -31,11 +31,11 @@ add-ons (`addons/automation`) and what they run (`automation/`). The user guide 
 
 | Where | What |
 |---|---|
-| `01-infra/workflows.tf` (`enable_argo_workflows`, on in dev) | Bucket `<project>-<env>-workflow-artifacts-<account>` (TLS only, 30 days); IRSA roles `argo_workflow` (artifacts; reads the events archive), `ci_builder` (artifacts; push to `ci_push_repositories`), `archive_uploads_reader` (the queue); with `enable_events_archive`, SQS queue `<project>-<env>-archive-uploads` (4 days), its policy (only S3, only from the archive bucket) and the archive bucket's notification (`.jsonl.gz`) |
+| `01-infra/workflows.tf` (`enable_argo_workflows`, on in dev) | Bucket `<project>-<env>-workflow-artifacts-<account>` (TLS only, 30 days); IRSA roles in namespace `workflows`, each limited to its own prefix of the bucket: `argo_workflow` (`default/`), `ci_builder` (`ci/`; push to `ci_push_repositories`), `archive_checker` (`archive-check/`; reads the events archive), `archive_uploads_reader` (the queue); with `enable_events_archive`, SQS queue `<project>-<env>-archive-uploads` (4 days), its policy (only S3, only from the archive bucket) and the archive bucket's notification (`.jsonl.gz`) |
 | gitops `addons/automation` | Argo Workflows 4.1.6 (chart 2.0.14), Argo Events 1.9.11 (2.4.27); lab and dev |
-| gitops `automation/base` | `ci-build`, `dead-letter-triage` (+ Kafka EventSource and Sensor), CronWorkflow `slo-report`, JetStream EventBus, accounts, two NetworkPolicies, KafkaAccess |
+| gitops `automation/base` (namespace `workflows`) | `ci-build`, `dead-letter-triage` (+ Kafka EventSource and Sensor), `slo-report` and its CronWorkflow, JetStream EventBus, accounts, two NetworkPolicies, KafkaAccess |
 | gitops `automation/dev` | `verify-archive-object` (+ SQS EventSource and Sensor); the IRSA annotations |
-| gitops `streaming/base` | KafkaUser `argo-events` (read the dead-letter topics); `argo` among the listener's peers |
+| gitops `streaming/base` | KafkaUser `argo-events` (read the dead-letter topics); `workflows` among the listener's peers |
 | gitops `observability/base/automation-alerts.yaml` | `ArgoWorkflowsControllerUnavailable`, tested |
 
 ---
@@ -87,6 +87,24 @@ object per line with the connector's fields, values that decode, offsets that on
 start where the name says. Offset gaps aren't errors: transaction markers take offsets too.
 Tested locally on a good file, a broken line and a misnamed file.
 
+### 3.7 What a review of the pushed step found
+
+A security review of the commit found three things, all fixed:
+
+- **A workflow could run as the controller.** A workflow's pods may use any ServiceAccount
+  of the workflow's namespace, and workflows ran in `argo`, beside the controller and the
+  server and their cluster-wide accounts. Whoever could start a workflow could have run
+  pods with the controller's rights. Workflows now run in namespace `workflows`, which holds
+  only accounts made for them; the controller also runs only workflows that reference a
+  WorkflowTemplate (`templateReferencing: Strict`, so the nightly report became a template the
+  cron starts), and the CI pipeline builds only this project's repository.
+- **Every workflow could read the archive.** The default workflow role had the archive check's
+  read access. The check now has its own account and role (`archive_checker`).
+- **A CI build could rewrite other workflows' output.** Every role could read, write and
+  delete the whole artifact bucket, and a CI build runs a commit's code. Each account's
+  workflows now write under their own prefix, each role may use only its own, and nobody
+  deletes (the bucket's lifecycle does).
+
 ---
 
 ## 4. Verify — the full sequence
@@ -96,13 +114,13 @@ cd tf/infrastructure/app-cluster/01-infra && terraform init -backend=false && te
 cd gitops && ./scripts/validate.sh             # charts, automation/<env> against the CRDs, the alert test
 
 # Lab or dev
-kubectl get pods,eventbus,eventsources,sensors -n argo
-argo submit -n argo --from cronwf/slo-report --watch && argo get -n argo @latest
-argo list -n argo --prefix dead-letter-triage          # after a poison record (docs/KAFKA.md, 3)
+kubectl get pods,eventbus,eventsources,sensors -n workflows
+argo submit -n workflows --from cronwf/slo-report --watch && argo get -n workflows @latest
+argo list -n workflows --prefix dead-letter-triage          # after a poison record (docs/KAFKA.md, 3)
 
 # dev
 terraform output archive_uploads_queue
-argo list -n argo --prefix verify-archive-object        # one per archive file
+argo list -n workflows --prefix verify-archive-object        # one per archive file
 ```
 
 ---
@@ -111,13 +129,13 @@ argo list -n argo --prefix verify-archive-object        # one per archive file
 
 | Symptom | Likely cause |
 |---|---|
-| EventSource `dead-letters` crash-loops | the KafkaAccess Secret not there yet, `argo` missing from the listener's peers, or the protocol version unset |
-| no triage workflow after a dead letter | the Sensor's account lacks `create` on workflows; `kubectl logs -n argo -l sensor-name=dead-letters` |
+| EventSource `dead-letters` crash-loops | the KafkaAccess Secret not there yet, `workflows` missing from the listener's peers, or the protocol version unset |
+| no triage workflow after a dead letter | the Sensor's account lacks `create` on workflows; `kubectl logs -n workflows -l sensor-name=dead-letters` |
 | `verify-archive-object` fails at its input artifact | the `argo_workflow` role lacks `s3:GetObject` on the archive (enable_events_archive off when the role was made) |
 | the archive EventSource gets nothing | the bucket notification or the queue policy (`aws:SourceArn` must be the archive bucket) |
-| `ci-build` fails at build | Pod Security forbids unconfined seccomp/AppArmor in `argo`, or the node's kernel lacks unprivileged user namespaces |
+| `ci-build` fails at build | Pod Security forbids unconfined seccomp/AppArmor in `workflows`, or the node's kernel lacks unprivileged user namespaces |
 | `ci-build` fails at scan | a fixable HIGH or CRITICAL vulnerability: rebuild on a newer base image, or `-p failOnVulnerabilities=false` to see the report |
-| the UI says 401 | a token from `kubectl create token workflow-operator -n argo`, prefixed with `Bearer ` |
+| the UI says 401 | a token from `kubectl create token workflow-operator -n workflows`, prefixed with `Bearer ` |
 
 ---
 

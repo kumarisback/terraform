@@ -3,8 +3,8 @@
 # topic 21; gitops docs/WORKFLOWS.md). Off by default; dev turns it on.
 #
 # - An S3 bucket for workflows' artifacts and archived step logs, kept 30
-#   days. Workflows reach it with their own IRSA roles; the controller
-#   needs no AWS access.
+#   days. Each kind of workflow reaches it with its own IRSA role, under a
+#   prefix of its own; the controller needs no AWS access.
 # - Role ci_builder: pushes the services' images to ECR (the CI pipeline,
 #   gitops automation/base/ci-build.yaml).
 # - With the events archive on too (streaming.tf): every new archive file
@@ -19,43 +19,41 @@ locals {
   archive_uploads_queue     = "${var.project_name}-${var.environment}-archive-uploads"
   archive_check_enabled     = var.enable_argo_workflows && var.enable_events_archive
 
-  # Read and write the artifact bucket: every workflow pod uploads its
-  # log and outputs there, and downloads its inputs.
-  workflow_artifacts_statement = {
-    Effect   = "Allow"
-    Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    Resource = "arn:aws:s3:::${local.workflow_artifacts_bucket}/*"
+  # Each account's workflows keep their logs and artifacts under a prefix
+  # of their own (gitops: keyFormat default/..., ci/..., archive-check/...),
+  # and each role may read and write only that prefix, and delete nothing
+  # (the bucket's lifecycle does). A CI build runs a commit's code: it must
+  # not read or overwrite what other workflows left there.
+  workflow_artifacts_prefix = {
+    for prefix in ["default", "ci", "archive-check"] : prefix => {
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:PutObject"]
+      Resource = "arn:aws:s3:::${local.workflow_artifacts_bucket}/${prefix}/*"
+    }
   }
 
   # Merged into module "eks"'s irsa_roles (main.tf). ServiceAccounts in
-  # namespace argo: argo-workflow (the workflows' default, from the
-  # argo-workflows chart), ci-builder and archive-uploads-reader (gitops
-  # automation/).
+  # namespace workflows, where gitops runs every workflow (Argo's own
+  # controller and server run elsewhere, so a workflow can't borrow their
+  # accounts): argo-workflow (the default, from the argo-workflows chart),
+  # ci-builder, archive-checker and archive-uploads-reader (automation/).
   workflows_irsa_roles = !var.enable_argo_workflows ? {} : merge(
     {
       argo_workflow = {
-        namespace       = "argo"
+        namespace       = "workflows"
         service_account = "argo-workflow"
         inline_policy_json = jsonencode({
-          Version = "2012-10-17"
-          Statement = concat(
-            [local.workflow_artifacts_statement],
-            # The archive check reads the file it checks, nothing else.
-            local.archive_check_enabled ? [{
-              Effect   = "Allow"
-              Action   = ["s3:GetObject"]
-              Resource = "arn:aws:s3:::${local.events_archive_bucket}/*"
-            }] : []
-          )
+          Version   = "2012-10-17"
+          Statement = [local.workflow_artifacts_prefix["default"]]
         })
       }
       ci_builder = {
-        namespace       = "argo"
+        namespace       = "workflows"
         service_account = "ci-builder"
         inline_policy_json = jsonencode({
           Version = "2012-10-17"
           Statement = [
-            local.workflow_artifacts_statement,
+            local.workflow_artifacts_prefix["ci"],
             # A registry login; the token is scoped by the statement below.
             {
               Effect   = "Allow"
@@ -84,8 +82,24 @@ locals {
       }
     },
     local.archive_check_enabled ? {
+      # The archive check alone reads the archive.
+      archive_checker = {
+        namespace       = "workflows"
+        service_account = "archive-checker"
+        inline_policy_json = jsonencode({
+          Version = "2012-10-17"
+          Statement = [
+            local.workflow_artifacts_prefix["archive-check"],
+            {
+              Effect   = "Allow"
+              Action   = ["s3:GetObject"]
+              Resource = "arn:aws:s3:::${local.events_archive_bucket}/*"
+            },
+          ]
+        })
+      }
       archive_uploads_reader = {
-        namespace       = "argo"
+        namespace       = "workflows"
         service_account = "archive-uploads-reader"
         inline_policy_json = jsonencode({
           Version = "2012-10-17"
