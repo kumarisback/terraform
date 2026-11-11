@@ -36,7 +36,7 @@ Debezium in the Kafka Connect image. The user guide is `gitops/docs/DATABASE.md`
 |---|---|
 | `modules/database/main.tf` | `aws_db_parameter_group` (`rds.force_ssl`, `rds.logical_replication`, `log_min_duration_statement`); `aws_db_instance.rds` (PostgreSQL 17, Multi-AZ, gp3 with autoscaling, `ca_cert_identifier`, managed master password, IAM auth, Database Insights standard, Enhanced Monitoring role, log exports, final snapshot, deletion protection); `rds_replica`; RDS Proxy (security group with standalone rules, IAM role reading the secret, proxy requiring TLS, target group with pool limits); five or six CloudWatch alarms |
 | `modules/database/tests/database.tftest.hcl` | 7 runs against a mocked provider: the security group, the production settings, the replica's alarm, the proxy, the proxy's precondition, the engine and client validations |
-| `01-infra/main.tf` | Unleash's database name and user, `rds_multi_az`, `rds_read_replica`, `rds_proxy`; the SNS topic and e-mail subscription for the alarms; External Secrets may read the RDS master secret (that ARN only) |
+| `01-infra/main.tf` | Unleash's database name and user, `rds_multi_az`, `rds_read_replica`, `rds_proxy`; the SNS topic and e-mail subscription for the alarms; IRSA role `unleash_rds_secret`: the RDS master secret (that ARN only), for a SecretStore in namespace `feature-flags`; External Secrets' cluster-wide role keeps to `microservices/*` |
 | `01-infra/observability.tf` | IRSA role `grafana_cloudwatch`: CloudWatch metrics and alarms, read-only |
 | `01-infra/outputs.tf` | `rds_address`, `rds_master_secret_arn`, `rds_proxy_address`, `vpc_cidr_block`: what gitops' ConfigMaps take |
 | `environments/app-cluster/dev.tfvars` | The block to uncomment for the exercises (RDS is off by default) |
@@ -106,7 +106,17 @@ autoscaling hits its limit. Two defences: `heartbeat.interval.ms` (Debezium conf
 position every minute even when its table doesn't change) and the `replication_slot_lag`
 alarm (`OldestReplicationSlotLag` over 1 GiB).
 
-### 3.9 Nothing to route reads to
+### 3.9 A master secret any namespace could have read
+
+The first version let External Secrets' role read the RDS master secret. That role backs
+a *cluster-wide* store with no namespace conditions: an ExternalSecret in any namespace
+could have copied the master password out. An automated security review caught it. The
+secret now has a role of its own, trusted by one ServiceAccount in `feature-flags`, used
+by a namespaced SecretStore there; the shared role is back to `microservices/*`. The same
+review's other point stands as `gitops/docs/ISSUES.md` #17: Unleash signing in as the
+master user at all (fix: its own role, rotated with alternating users).
+
+### 3.10 Nothing to route reads to
 
 The roadmap says to route order-service's reads to the replica; order-service uses MongoDB,
 and Unleash can't split reads. The replica stays optional, for the lag exercise, and section
@@ -139,7 +149,7 @@ kubectl -n kafka get kafkaconnector flag-changes -o jsonpath='{.status.connector
 | Plan wants to replace the parameter group | the engine's major version changed its family; `create_before_destroy` moves the instance first |
 | `destroy` fails: deletion protection | set `rds_deletion_protection = false`, apply, then destroy |
 | `destroy` fails: final snapshot exists | the identifier is taken by an earlier destroy: change `rds_final_snapshot_identifier` or delete the old snapshot |
-| External Secrets: `AccessDenied` on `rds!db-…` | the ESO role is built with `enable_rds && rds_manage_master_user_password`; apply 01-infra after enabling RDS |
+| ExternalSecret `unleash-db`: `AccessDenied` on `rds!db-…` | role `unleash_rds_secret` exists only with `enable_rds && rds_manage_master_user_password` (apply 01-infra after enabling RDS), and `secret-reader-role-arn` in gitops' `unleash-rds` must name it |
 | Grafana's CloudWatch panels: `AccessDenied` / no credentials | the ServiceAccount annotation names another role, or the IRSA webhook didn't inject (restart Grafana after annotating) |
 | RDS Proxy target `UNAVAILABLE` | the proxy's role can't read the secret, or the database's group lacks the rule from the proxy's |
 

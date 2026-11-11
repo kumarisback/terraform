@@ -86,7 +86,7 @@ output "rds_address" {
 }
 
 output "rds_master_secret_arn" {
-  description = "The secret RDS keeps the master user's credentials in and rotates: gitops feature-flags/<env>'s ConfigMap unleash-rds, key secret-arn."
+  description = "The secret RDS keeps the master user's credentials in and rotates: gitops feature-flags/<env>'s ConfigMap unleash-rds, key secret-arn (read with irsa_role_arns[\"unleash_rds_secret\"], key secret-reader-role-arn)."
   value       = module.database.rds_master_secret_arn
 }
 

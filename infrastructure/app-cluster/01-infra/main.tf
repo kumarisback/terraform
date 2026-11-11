@@ -346,13 +346,11 @@ module "eks" {
           {
             Effect = "Allow"
             Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-            # This project's secrets, and with RDS on, the master user's
-            # secret RDS keeps and rotates (named rds!db-..., roadmap step 23):
-            # that one secret, not every RDS secret in the account.
-            Resource = concat(
-              ["arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*"],
-              var.enable_rds && var.rds_manage_master_user_password ? [module.database.rds_master_secret_arn] : []
-            )
+            # This project's secrets. Not the RDS master secret: any
+            # namespace's ExternalSecret can use this store, so that one has
+            # its own role, usable from namespace feature-flags only
+            # (unleash_rds_secret below, roadmap step 23).
+            Resource = ["arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*"]
           }
         ]
       })
@@ -509,7 +507,7 @@ module "eks" {
       service_account = "efs-csi-controller-sa"
       policy_arns     = ["arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"]
     }
-  }, local.container_insights_irsa_roles, local.grafana_irsa_roles, local.events_archive_irsa_roles, local.msk_irsa_roles, local.workflows_irsa_roles)
+  }, local.unleash_rds_irsa_roles, local.container_insights_irsa_roles, local.grafana_irsa_roles, local.events_archive_irsa_roles, local.msk_irsa_roles, local.workflows_irsa_roles)
 }
 
 # ---------------------------------------------------------
@@ -674,6 +672,29 @@ resource "aws_sns_topic_subscription" "database_alarm_email" {
   topic_arn = aws_sns_topic.database_alarms[0].arn
   protocol  = "email"
   endpoint  = var.database_alarm_email
+}
+
+# The RDS master secret, readable by one ServiceAccount in namespace
+# feature-flags (gitops feature-flags/components/rds: a namespaced
+# SecretStore signs in as it), not by External Secrets' cluster-wide store.
+# A for-if rather than cond ? {...} : {}, whose two object types differ.
+locals {
+  unleash_rds_irsa_roles = {
+    for k, v in {
+      unleash_rds_secret = {
+        namespace       = "feature-flags"
+        service_account = "unleash-db-reader"
+        inline_policy_json = jsonencode({
+          Version = "2012-10-17"
+          Statement = [{
+            Effect   = "Allow"
+            Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+            Resource = module.database.rds_master_secret_arn
+          }]
+        })
+      }
+    } : k => v if var.enable_rds && var.rds_manage_master_user_password
+  }
 }
 
 module "database" {
