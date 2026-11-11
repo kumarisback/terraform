@@ -9,6 +9,9 @@
 #                                                   (Kong checks tokens with it, step 17)
 #   ./scripts/set-secret.sh <env> jwt-public-key    writes the public key of the signing key
 #                                                   already there, without rotating it
+#   ./scripts/set-secret.sh <env> unleash           generates Unleash's database and admin
+#                                                   passwords and its two API token secrets
+#                                                   (roadmap step 22, gitops docs/FEATURE-FLAGS.md)
 #
 # <env> is dev, staging or prod. Needs the AWS CLI with access to Secrets
 # Manager in that environment's account, and openssl.
@@ -24,7 +27,7 @@
 #   kubectl rollout restart deployment user-service -n <namespace>
 set -euo pipefail
 
-usage() { echo "usage: $0 <dev|staging|prod> <mongodb|jwt-signing-key|jwt-public-key>" >&2; exit 2; }
+usage() { echo "usage: $0 <dev|staging|prod> <mongodb|jwt-signing-key|jwt-public-key|unleash>" >&2; exit 2; }
 [ $# -eq 2 ] || usage
 ENV="$1"; NAME="$2"
 case "${ENV}" in dev|staging|prod) ;; *) usage ;; esac
@@ -53,6 +56,18 @@ case "${NAME}" in
     (umask 077 && aws secretsmanager get-secret-value --region "${REGION}" \
       --secret-id "microservices/${ENV}/jwt-signing-key" --query SecretString --output text > "${workdir}/private")
     openssl pkey -in "${workdir}/private" -pubout -out "${workdir}/value"
+    ;;
+  unleash)
+    # Four random values, generated here and never shown. Setting them again
+    # changes them all, but PostgreSQL takes its password and Unleash makes
+    # its API tokens only on their first start: set it before the first
+    # start, or start both again with an empty database (dev).
+    ruby -rjson -rsecurerandom -e 'print({
+      "DATABASE_PASSWORD" => SecureRandom.hex(24),
+      "ADMIN_PASSWORD" => SecureRandom.hex(16),
+      "BACKEND_TOKEN_SECRET" => SecureRandom.hex(32),
+      "FRONTEND_TOKEN_SECRET" => SecureRandom.hex(32)
+    }.to_json)' > "${workdir}/value"
     ;;
   *) usage ;;
 esac

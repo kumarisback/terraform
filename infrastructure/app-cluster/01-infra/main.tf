@@ -704,6 +704,7 @@ resource "aws_secretsmanager_secret" "out_of_band" {
     "mongodb"         = "MONGO_URI for the services (JSON). Set with scripts/set-secret.sh, never by Terraform."
     "jwt-signing-key" = "user-service's token-signing key (PKCS#8 PEM). Set and rotated with scripts/set-secret.sh."
     "jwt-public-key"  = "Its public key (PEM), for Kong to check sign-in tokens at the gateway. Written by scripts/set-secret.sh with the signing key."
+    "unleash"         = "Unleash's database and admin passwords and its backend and frontend API token secrets (JSON, roadmap step 22). Generated with scripts/set-secret.sh."
   }
 
   name        = "${var.project_name}/${var.environment}/${each.key}"
