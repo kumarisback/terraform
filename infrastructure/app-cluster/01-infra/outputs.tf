@@ -95,7 +95,7 @@ output "rds_proxy_address" {
   value       = module.database.rds_proxy_address
 }
 
-output "vpc_cidr_block" {
-  description = "The VPC's address range: gitops feature-flags/<env>'s ConfigMap unleash-rds, key vpc-cidr (where Unleash's NetworkPolicy lets it reach RDS)."
-  value       = module.networking.vpc_cidr_block
+output "database_subnet_cidrs" {
+  description = "The private data subnets, where RDS and RDS Proxy live: gitops feature-flags/<env>'s ConfigMap unleash-rds, keys data-subnet-0 and data-subnet-1 (the only addresses Unleash's NetworkPolicy lets it reach on 5432; not the whole VPC, which holds every pod's address too)."
+  value       = module.networking.private_data_subnet_cidrs
 }

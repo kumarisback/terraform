@@ -38,7 +38,7 @@ Debezium in the Kafka Connect image. The user guide is `gitops/docs/DATABASE.md`
 | `modules/database/tests/database.tftest.hcl` | 7 runs against a mocked provider: the security group, the production settings, the replica's alarm, the proxy, the proxy's precondition, the engine and client validations |
 | `01-infra/main.tf` | Unleash's database name and user, `rds_multi_az`, `rds_read_replica`, `rds_proxy`; the SNS topic and e-mail subscription for the alarms; IRSA role `unleash_rds_secret`: the RDS master secret (that ARN only), for a SecretStore in namespace `feature-flags`; External Secrets' cluster-wide role keeps to `microservices/*` |
 | `01-infra/observability.tf` | IRSA role `grafana_cloudwatch`: CloudWatch metrics and alarms, read-only |
-| `01-infra/outputs.tf` | `rds_address`, `rds_master_secret_arn`, `rds_proxy_address`, `vpc_cidr_block`: what gitops' ConfigMaps take |
+| `01-infra/outputs.tf` | `rds_address`, `rds_master_secret_arn`, `rds_proxy_address`, `database_subnet_cidrs`: what gitops' ConfigMaps take |
 | `environments/app-cluster/dev.tfvars` | The block to uncomment for the exercises (RDS is off by default) |
 
 ---
@@ -116,7 +116,16 @@ by a namespaced SecretStore there; the shared role is back to `microservices/*`.
 review's other point stands as `gitops/docs/ISSUES.md` #17: Unleash signing in as the
 master user at all (fix: its own role, rotated with alternating users).
 
-### 3.10 Nothing to route reads to
+### 3.10 "The VPC" includes every pod
+
+Unleash's egress rule to RDS first allowed the VPC's whole range on 5432. With the VPC CNI
+every pod has an address in that range, so the rule let Unleash reach any pod listening on
+5432, not only RDS. Another review finding. The rule now names the private data subnets
+only, where RDS and RDS Proxy live (tf output `database_subnet_cidrs`); RDS's IP itself
+isn't usable, since a Multi-AZ failover moves the endpoint to the standby's address in
+the other subnet.
+
+### 3.11 Nothing to route reads to
 
 The roadmap says to route order-service's reads to the replica; order-service uses MongoDB,
 and Unleash can't split reads. The replica stays optional, for the lag exercise, and section
