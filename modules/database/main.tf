@@ -240,7 +240,7 @@ resource "aws_db_instance" "rds" {
   monitoring_role_arn                   = var.rds_monitoring_interval > 0 ? aws_iam_role.rds_monitoring[0].arn : null
   enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
 
-  tags = merge(local.common_tags, {
+  tags = merge(local.common_tags, var.rds_extra_tags, {
     Name = "${var.name}-${var.environment}-rds"
   })
 

@@ -72,3 +72,11 @@ enable_argo_workflows = true
 # rds_read_replica              = true   # the replica-lag exercise
 # rds_proxy                     = true   # the connection-pooling exercise
 # database_alarm_email          = "you@example.com"
+
+# Backups (01-infra backup.tf, roadmap step 25, learning topic 25).
+# Velero's bucket and role: on, gitops addons/backup runs Velero in dev; a
+# few cents a month. AWS Backup (RDS, EBS, EFS tagged Backup=daily): off,
+# turn on for the step's restore drills; billed per GB of recovery points.
+enable_velero     = true
+enable_aws_backup = false
+# backup_notification_email = "you@example.com"

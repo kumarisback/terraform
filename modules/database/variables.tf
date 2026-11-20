@@ -190,3 +190,9 @@ variable "rds_proxy" {
   type        = bool
   default     = false
 }
+
+variable "rds_extra_tags" {
+  description = "More tags for the RDS instance, e.g. Backup = \"daily\" to opt it into AWS Backup (modules/backup)"
+  type        = map(string)
+  default     = {}
+}

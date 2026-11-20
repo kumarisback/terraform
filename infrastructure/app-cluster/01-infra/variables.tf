@@ -368,3 +368,37 @@ variable "msk_client_namespace" {
   type        = string
   default     = "development"
 }
+
+variable "enable_aws_backup" {
+  description = "AWS Backup for RDS, EBS and EFS tagged Backup=daily (backup.tf, learning topic 25). Billed for the recovery points it keeps."
+  type        = bool
+  default     = false
+}
+
+variable "backup_vault_lock" {
+  description = "Lock the backup vault (modules/backup vault_lock). null: no lock. Compliance mode is permanent after its grace period: read learning topic 25 first."
+  type = object({
+    min_retention_days    = number
+    max_retention_days    = number
+    compliance_after_days = optional(number)
+  })
+  default = null
+}
+
+variable "backup_copy_to_vault_arn" {
+  description = "Copy each daily recovery point to this vault (another region or account); null for none."
+  type        = string
+  default     = null
+}
+
+variable "backup_notification_email" {
+  description = "Address for failed backups and finished restores (confirm the e-mail AWS sends); null for none."
+  type        = string
+  default     = null
+}
+
+variable "enable_velero" {
+  description = "Velero's S3 bucket and IRSA role (backup.tf; gitops addons/backup installs Velero). Billed for what the bucket holds."
+  type        = bool
+  default     = false
+}

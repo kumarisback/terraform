@@ -12,6 +12,10 @@
 #   ./scripts/set-secret.sh <env> unleash           generates Unleash's database and admin
 #                                                   passwords and its two API token secrets
 #                                                   (roadmap step 22, gitops docs/FEATURE-FLAGS.md)
+#   ./scripts/set-secret.sh <env> velero-repository generates the password Velero encrypts
+#                                                   volume data in its bucket with (roadmap
+#                                                   step 25, gitops docs/BACKUP-DR.md); refuses
+#                                                   to replace one, see below
 #
 # <env> is dev, staging or prod. Needs the AWS CLI with access to Secrets
 # Manager in that environment's account, and openssl.
@@ -27,7 +31,7 @@
 #   kubectl rollout restart deployment user-service -n <namespace>
 set -euo pipefail
 
-usage() { echo "usage: $0 <dev|staging|prod> <mongodb|jwt-signing-key|jwt-public-key|unleash>" >&2; exit 2; }
+usage() { echo "usage: $0 <dev|staging|prod> <mongodb|jwt-signing-key|jwt-public-key|unleash|velero-repository>" >&2; exit 2; }
 [ $# -eq 2 ] || usage
 ENV="$1"; NAME="$2"
 case "${ENV}" in dev|staging|prod) ;; *) usage ;; esac
@@ -68,6 +72,21 @@ case "${NAME}" in
       "BACKEND_TOKEN_SECRET" => SecureRandom.hex(32),
       "FRONTEND_TOKEN_SECRET" => SecureRandom.hex(32)
     }.to_json)' > "${workdir}/value"
+    ;;
+  velero-repository)
+    # Velero encrypts the volume data it keeps (its Kopia repositories) with
+    # this password. Without it Velero would make one with a password that is
+    # the same everywhere. Every backup ever made needs the password it was
+    # made with: replacing it makes them all unreadable, so this refuses to
+    # if the secret already has a value (FORCE=1 to replace it anyway, after
+    # deleting the old backups). Keep a copy outside AWS: a restore into a new
+    # account starts with it.
+    if aws secretsmanager get-secret-value --region "${REGION}" --secret-id "${SECRET_ID}" \
+        --query VersionId --output text > /dev/null 2>&1 && [ "${FORCE:-0}" != "1" ]; then
+      echo "❌ ${SECRET_ID} already has a value; replacing it makes every existing backup unreadable (FORCE=1 to do it anyway)." >&2
+      exit 1
+    fi
+    ruby -rjson -rsecurerandom -e 'print({ "repository-password" => SecureRandom.hex(32) }.to_json)' > "${workdir}/value"
     ;;
   *) usage ;;
 esac

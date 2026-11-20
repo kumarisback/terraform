@@ -507,7 +507,7 @@ module "eks" {
       service_account = "efs-csi-controller-sa"
       policy_arns     = ["arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"]
     }
-  }, local.unleash_rds_irsa_roles, local.container_insights_irsa_roles, local.grafana_irsa_roles, local.events_archive_irsa_roles, local.msk_irsa_roles, local.workflows_irsa_roles)
+  }, local.velero_irsa_roles, local.unleash_rds_irsa_roles, local.container_insights_irsa_roles, local.grafana_irsa_roles, local.events_archive_irsa_roles, local.msk_irsa_roles, local.workflows_irsa_roles)
 }
 
 # ---------------------------------------------------------
@@ -621,8 +621,10 @@ resource "aws_efs_file_system" "shared" {
     transition_to_ia = "AFTER_30_DAYS"
   }
 
+  # Opted into AWS Backup's plan (backup.tf) when that is on.
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-${var.environment}-shared"
+    Name   = "${var.project_name}-${var.environment}-shared"
+    Backup = "daily"
   })
 }
 
@@ -708,11 +710,13 @@ module "database" {
   enable_rds                = var.enable_rds
   # PostgreSQL for Unleash, the feature flag service (roadmap steps 22-23,
   # gitops feature-flags/components/rds): it signs in as the master user.
-  rds_db_name                     = "unleash"
-  rds_username                    = "unleash"
-  rds_multi_az                    = var.rds_multi_az
-  rds_read_replica                = var.rds_read_replica
-  rds_proxy                       = var.rds_proxy
+  rds_db_name      = "unleash"
+  rds_username     = "unleash"
+  rds_multi_az     = var.rds_multi_az
+  rds_read_replica = var.rds_read_replica
+  rds_proxy        = var.rds_proxy
+  # Opted into AWS Backup's plan (backup.tf) when that is on.
+  rds_extra_tags                  = { Backup = "daily" }
   alarm_actions                   = aws_sns_topic.database_alarms[*].arn
   enable_elasticache              = var.enable_elasticache
   redis_node_type                 = var.redis_node_type
@@ -754,10 +758,11 @@ module "secrets" {
 # ---------------------------------------------------------
 resource "aws_secretsmanager_secret" "out_of_band" {
   for_each = {
-    "mongodb"         = "MONGO_URI for the services (JSON). Set with scripts/set-secret.sh, never by Terraform."
-    "jwt-signing-key" = "user-service's token-signing key (PKCS#8 PEM). Set and rotated with scripts/set-secret.sh."
-    "jwt-public-key"  = "Its public key (PEM), for Kong to check sign-in tokens at the gateway. Written by scripts/set-secret.sh with the signing key."
-    "unleash"         = "Unleash's database and admin passwords and its backend and frontend API token secrets (JSON, roadmap step 22). Generated with scripts/set-secret.sh."
+    "mongodb"           = "MONGO_URI for the services (JSON). Set with scripts/set-secret.sh, never by Terraform."
+    "jwt-signing-key"   = "user-service's token-signing key (PKCS#8 PEM). Set and rotated with scripts/set-secret.sh."
+    "jwt-public-key"    = "Its public key (PEM), for Kong to check sign-in tokens at the gateway. Written by scripts/set-secret.sh with the signing key."
+    "unleash"           = "Unleash's database and admin passwords and its backend and frontend API token secrets (JSON, roadmap step 22). Generated with scripts/set-secret.sh."
+    "velero-repository" = "The password Velero encrypts backed-up volume data with (JSON, roadmap step 25). Generated once with scripts/set-secret.sh; replacing it makes existing backups unreadable."
   }
 
   name        = "${var.project_name}/${var.environment}/${each.key}"

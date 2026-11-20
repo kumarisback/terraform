@@ -99,3 +99,13 @@ output "database_subnet_cidrs" {
   description = "The private data subnets, where RDS and RDS Proxy live: gitops feature-flags/<env>'s ConfigMap unleash-rds, keys data-subnet-0 and data-subnet-1 (the only addresses Unleash's NetworkPolicy lets it reach on 5432; not the whole VPC, which holds every pod's address too)."
   value       = module.networking.private_data_subnet_cidrs
 }
+
+output "velero_bucket_name" {
+  description = "Velero's backup bucket (null unless enable_velero): gitops addons/values/<env>/velero.yaml, backupStorageLocation bucket. Its role is irsa_role_arns[\"velero\"]."
+  value       = one(aws_s3_bucket.velero[*].bucket)
+}
+
+output "backup_vault_name" {
+  description = "AWS Backup's vault (null unless enable_aws_backup)"
+  value       = one(module.backup[*].vault_name)
+}

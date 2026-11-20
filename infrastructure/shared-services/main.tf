@@ -89,3 +89,16 @@ module "jenkins" {
   state_bucket_names         = var.terraform_state_bucket_names
   managed_environments       = var.managed_environments
 }
+
+# ---------------------------------------------------------
+# The Terraform state buckets (roadmap step 25, learning topic 25):
+# versioned (every state write keeps the previous one: the way back from a
+# bad apply), a bounded history, encrypted, private. The buckets themselves
+# were made by hand before any Terraform ran; this manages their settings.
+# ---------------------------------------------------------
+module "state_bucket" {
+  source   = "../../modules/state-bucket"
+  for_each = toset(var.terraform_state_bucket_names)
+
+  bucket = each.value
+}
